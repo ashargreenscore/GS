@@ -1,0 +1,34 @@
+<div class="header">
+  <h1>Order Request Update</h1>
+</div>
+{{#> body}}
+  <h2>Hello {{buyerName}},</h2>
+  <p>Unfortunately, your order request could not be fulfilled at this time.</p>
+  
+  <div class="alert alert-warning">
+    <strong>Order Request Status:</strong> Declined<br>
+    {{#if reason}}<strong>Reason:</strong> {{reason}}{{/if}}
+  </div>
+  
+  <div class="info-box">
+    <h3>Order Request Details:</h3>
+    Material: {{materialName}}<br>
+    Quantity Requested: {{quantity}} {{unit}}<br>
+    Request Date: {{formatDate requestDate}}
+  </div>
+  
+  {{#if sellerNotes}}
+  <p><strong>Note from Seller:</strong> {{sellerNotes}}</p>
+  {{/if}}
+  
+  <h3>What You Can Do:</h3>
+  <ul>
+    <li>Browse similar materials from other sellers</li>
+    <li>Adjust your quantity and try again</li>
+    <li>Contact the seller directly for clarification</li>
+  </ul>
+  
+  <center>
+    <a href="{{browseUrl}}" class="button">Browse Similar Materials</a>
+  </center>
+{{/body}}

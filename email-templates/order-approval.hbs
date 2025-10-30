@@ -1,0 +1,60 @@
+<div class="header">
+  <h1>Order Approved! ✅</h1>
+</div>
+{{#> body}}
+  <h2>Hello {{buyerName}},</h2>
+  <p>Great news! Your order has been approved by the seller.</p>
+  
+  <div class="alert alert-success">
+    <strong>Order ID:</strong> {{orderId}}<br>
+    <strong>Status:</strong> Approved & Processing
+  </div>
+  
+  <div class="order-details">
+    <h3>Order Summary:</h3>
+    <table>
+      <tr>
+        <td>Material:</td>
+        <td>{{materialName}}</td>
+      </tr>
+      <tr>
+        <td>Quantity:</td>
+        <td>{{quantity}} {{unit}}</td>
+      </tr>
+      <tr>
+        <td>Unit Price:</td>
+        <td>{{formatCurrency unitPrice}}</td>
+      </tr>
+      <tr>
+        <td>Subtotal:</td>
+        <td>{{formatCurrency subtotal}}</td>
+      </tr>
+      <tr>
+        <td>Platform Fee (5%):</td>
+        <td>{{formatCurrency platformFee}}</td>
+      </tr>
+      <tr>
+        <td><strong>Total Amount:</strong></td>
+        <td><strong>{{formatCurrency totalAmount}}</strong></td>
+      </tr>
+    </table>
+  </div>
+  
+  {{#if sellerNotes}}
+  <div class="info-box">
+    <strong>Note from Seller:</strong><br>
+    {{sellerNotes}}
+  </div>
+  {{/if}}
+  
+  <h3>What's Next?</h3>
+  <ul>
+    <li>The seller will prepare your order for shipment</li>
+    <li>You'll receive tracking information once the order ships</li>
+    <li>Expected delivery within 3-5 business days</li>
+  </ul>
+  
+  <center>
+    <a href="{{orderTrackingUrl}}" class="button">Track Your Order</a>
+  </center>
+{{/body}}

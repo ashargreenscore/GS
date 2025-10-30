@@ -1,0 +1,30 @@
+<div class="header">
+  <h1>Multiple Order Requests Received! 🛍️</h1>
+</div>
+{{#> body}}
+  <h2>Hello {{sellerName}},</h2>
+  <p>You have received multiple order requests from <strong>{{buyerCompany}}</strong>.</p>
+  
+  <div class="alert alert-success">
+    <strong>Total Items:</strong> {{itemCount}}<br>
+    <strong>Total Value:</strong> {{formatCurrency totalAmount}}
+  </div>
+  
+  <div class="order-details">
+    <h3>Items Requested:</h3>
+    <table>
+      {{#each items}}
+      <tr>
+        <td>{{this.material}} ({{this.listingId}})</td>
+        <td>{{this.quantity}} {{this.unit}} @ {{formatCurrency this.unitPrice}}</td>
+      </tr>
+      {{/each}}
+    </table>
+  </div>
+  
+  <center>
+    <a href="{{orderRequestsUrl}}" class="button">Review All Requests</a>
+  </center>
+  
+  <p><small>You can approve or decline these requests individually or in bulk.</small></p>
+{{/body}}

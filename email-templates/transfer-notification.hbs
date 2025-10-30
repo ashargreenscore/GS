@@ -1,0 +1,23 @@
+<div class="header">
+  <h1>Material Transfer Completed 🔄</h1>
+</div>
+{{#> body}}
+  <h2>Hello {{userName}},</h2>
+  <p>A material transfer has been completed successfully.</p>
+  
+  <div class="info-box">
+    <h3>Transfer Details:</h3>
+    <strong>Material:</strong> {{materialName}}<br>
+    <strong>Quantity:</strong> {{quantity}} {{unit}}<br>
+    <strong>From Project:</strong> {{fromProject}}<br>
+    <strong>To Project:</strong> {{toProject}}<br>
+    <strong>Transfer Date:</strong> {{formatDate transferDate}}<br>
+    {{#if notes}}<strong>Notes:</strong> {{notes}}{{/if}}
+  </div>
+  
+  <p>The inventory has been updated accordingly.</p>
+  
+  <center>
+    <a href="{{inventoryUrl}}" class="button">View Inventory</a>
+  </center>
+{{/body}}

@@ -1,0 +1,34 @@
+<div class="header">
+  <h1>Welcome to GreenScore Marketplace!</h1>
+</div>
+{{#> body}}
+  <h2>Hello {{userName}}! 👋</h2>
+  <p>Thank you for joining GreenScore Marketplace - your trusted platform for sustainable construction materials.</p>
+  
+  <div class="info-box">
+    <strong>Your account details:</strong><br>
+    Email: {{userEmail}}<br>
+    Account Type: {{userType}}<br>
+    {{#if companyName}}Company: {{companyName}}{{/if}}
+  </div>
+  
+  <h3>What's Next?</h3>
+  <ul>
+    {{#if isSeller}}
+    <li>Upload your inventory to start selling</li>
+    <li>Set competitive prices for your materials</li>
+    <li>Manage your projects and track sales</li>
+    {{else}}
+    <li>Browse available materials</li>
+    <li>Request quotes from sellers</li>
+    <li>Track your orders and deliveries</li>
+    {{/if}}
+  </ul>
+  
+  <center>
+    <a href="{{dashboardUrl}}" class="button">Go to Dashboard</a>
+  </center>
+  
+  <p>If you have any questions, feel free to reach out to our support team.</p>
+  <p>Best regards,<br>The GreenScore Team</p>
+{{/body}}

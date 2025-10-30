@@ -1,0 +1,47 @@
+<div class="header">
+  <h1>Order Status Update 📦</h1>
+</div>
+{{#> body}}
+  <h2>Hello {{recipientName}},</h2>
+  <p>There's an update on your order #{{orderId}}.</p>
+  
+  <div class="alert {{#if isShipped}}alert-success{{else if isDelivered}}alert-success{{else}}alert-warning{{/if}}">
+    <strong>New Status:</strong> {{status}}<br>
+    {{#if trackingNumber}}<strong>Tracking Number:</strong> {{trackingNumber}}{{/if}}
+  </div>
+  
+  <div class="order-details">
+    <h3>Order Information:</h3>
+    <table>
+      <tr>
+        <td>Material:</td>
+        <td>{{materialName}}</td>
+      </tr>
+      <tr>
+        <td>Quantity:</td>
+        <td>{{quantity}} {{unit}}</td>
+      </tr>
+      <tr>
+        <td>Total Amount:</td>
+        <td>{{formatCurrency totalAmount}}</td>
+      </tr>
+      {{#if estimatedDelivery}}
+      <tr>
+        <td>Estimated Delivery:</td>
+        <td>{{formatDate estimatedDelivery}}</td>
+      </tr>
+      {{/if}}
+    </table>
+  </div>
+  
+  {{#if notes}}
+  <div class="info-box">
+    <strong>Additional Notes:</strong><br>
+    {{notes}}
+  </div>
+  {{/if}}
+  
+  <center>
+    <a href="{{orderTrackingUrl}}" class="button">View Order Details</a>
+  </center>
+{{/body}}

@@ -1,0 +1,49 @@
+<div class="header">
+  <h1>New Order Request Received! 🛒</h1>
+</div>
+{{#> body}}
+  <h2>Hello {{sellerName}},</h2>
+  <p>You have received a new order request for your materials.</p>
+  
+  <div class="order-details">
+    <h3>Order Details:</h3>
+    <table>
+      <tr>
+        <td>Material:</td>
+        <td>{{materialName}}</td>
+      </tr>
+      <tr>
+        <td>Listing ID:</td>
+        <td>{{listingId}}</td>
+      </tr>
+      <tr>
+        <td>Quantity:</td>
+        <td>{{quantity}} {{unit}}</td>
+      </tr>
+      <tr>
+        <td>Unit Price:</td>
+        <td>{{formatCurrency unitPrice}}</td>
+      </tr>
+      <tr>
+        <td><strong>Total Amount:</strong></td>
+        <td><strong>{{formatCurrency totalAmount}}</strong></td>
+      </tr>
+    </table>
+  </div>
+  
+  <div class="info-box">
+    <h3>Buyer Information:</h3>
+    <strong>{{buyerName}}</strong><br>
+    {{#if buyerCompany}}Company: {{buyerCompany}}<br>{{/if}}
+    Email: {{buyerEmail}}<br>
+    Phone: {{buyerPhone}}<br>
+    {{#if deliveryAddress}}<br><strong>Delivery Address:</strong><br>{{deliveryAddress}}{{/if}}
+    {{#if deliveryNotes}}<br><strong>Notes:</strong> {{deliveryNotes}}{{/if}}
+  </div>
+  
+  <center>
+    <a href="{{orderRequestUrl}}" class="button">Review Order Request</a>
+  </center>
+  
+  <p><small>Please review and respond to this order request promptly to maintain a good seller rating.</small></p>
+{{/body}}
