@@ -879,11 +879,21 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
 
     // If no valid materials found
     if (!parseResult.materials || parseResult.materials.length === 0) {
+      const errorDetails = parseResult.errors || [];
+      const errorMessage = errorDetails.length > 0 
+        ? `No valid materials found. ${errorDetails.slice(0, 3).join('; ')}${errorDetails.length > 3 ? '...' : ''}`
+        : 'No valid materials found. Please ensure your file contains valid material data with required columns: material name, quantity, and price';
+      
+      console.error('❌ No valid materials found in file');
+      console.error('   Error details:', errorDetails);
+      console.error('   Total rows processed:', parseResult.totalRows || 0);
+      
       return res.status(400).json({
         success: false,
         error: 'No valid materials found',
-        message: 'Please ensure your file contains valid material data with required columns: material name, quantity, and price',
-        errors: parseResult.errors || []
+        message: errorMessage,
+        errors: errorDetails,
+        totalRows: parseResult.totalRows || 0
       });
     }
 

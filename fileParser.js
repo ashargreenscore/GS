@@ -63,6 +63,15 @@ class FileParser {
       const processedMaterials = [];
       let rowIndex = 0;
 
+      // Log column names from first row for debugging
+      if (data.length > 0 && fileType !== 'pdf') {
+        const firstRow = data[0];
+        const columnNames = Object.keys(firstRow);
+        console.log(`📋 Found ${columnNames.length} columns in file:`, columnNames);
+        console.log(`📋 First row sample:`, JSON.stringify(firstRow).substring(0, 200));
+      }
+
+      let skippedRows = 0;
       for (const row of data) {
         rowIndex++;
         try {
@@ -79,7 +88,18 @@ class FileParser {
             };
           } else {
             // For CSV/Excel data, use processRow
-            material = this.processRow(row, sellerId, projectId, rowIndex);
+            try {
+              material = this.processRow(row, sellerId, projectId, rowIndex);
+            } catch (processError) {
+              // Log why row was skipped
+              if (processError.message.includes('Material name is required')) {
+                skippedRows++;
+                if (skippedRows <= 5) {
+                  console.warn(`⚠️ Row ${rowIndex} skipped: Missing material name. Available columns:`, Object.keys(row));
+                }
+              }
+              throw processError;
+            }
             
             // Handle image assignment with proper priority:
             // 1. Use mapped image from photo column (for ZIP files)
@@ -100,6 +120,12 @@ class FileParser {
                 material.photo = '';
                 console.log(`🖼️ No image available for row ${rowIndex} - will use frontend placeholder`);
               }
+            } else {
+              skippedRows++;
+              if (skippedRows <= 5) {
+                const qtyValue = this.findColumnValue(row, this.columnMappings.qty);
+                console.warn(`⚠️ Row ${rowIndex} skipped: Invalid quantity (found: "${qtyValue}"). Columns:`, Object.keys(row));
+              }
             }
           }
           
@@ -109,6 +135,15 @@ class FileParser {
         } catch (error) {
           errors.push(`Row ${rowIndex}: ${error.message}`);
         }
+      }
+      
+      if (processedMaterials.length === 0 && data.length > 0) {
+        console.error('❌ No valid materials processed. Summary:');
+        console.error(`   Total rows in file: ${data.length}`);
+        console.error(`   Rows skipped: ${skippedRows}`);
+        console.error(`   Errors: ${errors.length}`);
+        console.error(`   Column names found:`, data.length > 0 ? Object.keys(data[0]) : 'none');
+        console.error(`   Looking for columns: material (${this.columnMappings.material.join(', ')}), qty (${this.columnMappings.qty.join(', ')}), price (${this.columnMappings.priceToday.join(', ')})`);
       }
 
       return {
