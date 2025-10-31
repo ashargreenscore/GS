@@ -139,7 +139,13 @@ class FileParser {
       const errors = [];
       let totalRows = 0;
 
-      fs.createReadStream(filePath)
+      const stream = fs.createReadStream(filePath);
+      
+      stream.on('error', (error) => {
+        reject(error);
+      });
+
+      stream
         .pipe(csv())
         .on('data', (row) => {
           totalRows++;
@@ -218,61 +224,130 @@ class FileParser {
   }
 
   async parseZip(filePath) {
+    let tempDir = null;
     try {
-      console.log('📦 Extracting ZIP file...');
+      console.log('📦 Extracting ZIP file:', filePath);
       
-      // Create temporary directory for extraction
-      const tempDir = path.join(__dirname, 'temp', Date.now().toString());
+      // Create temporary directory for extraction (use OS temp if available, otherwise local)
+      const os = require('os');
+      const tempBase = os.tmpdir ? os.tmpdir() : path.join(__dirname, 'temp');
+      tempDir = path.join(tempBase, `zip_extract_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+      
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
+        console.log(`📁 Created temp directory: ${tempDir}`);
       }
       
+      console.log('🔄 Extracting ZIP contents...');
       const extractedFiles = await this.extractZipFile(filePath, tempDir);
+      console.log(`✅ Extracted ${extractedFiles.length} files from ZIP`);
       
-      // Find Excel file and images folder
-      let excelFile = null;
+      if (!extractedFiles || extractedFiles.length === 0) {
+        throw new Error('ZIP file appears to be empty or extraction failed');
+      }
+      
+      // Find data file (Excel or CSV) and images folder
+      let dataFile = null;
+      let dataFileType = null;
       let imagesDir = null;
       
+      // First, search for data files
       for (const file of extractedFiles) {
-        // Skip Mac metadata files
-        if (path.basename(file).startsWith('._')) {
+        // Skip Mac metadata files and hidden files
+        const fileName = path.basename(file);
+        if (fileName.startsWith('._') || fileName.startsWith('.DS_Store')) {
           continue;
         }
         
-        if (file.endsWith('.xlsx') || file.endsWith('.xls')) {
-          excelFile = file;
-          console.log(`📊 Found Excel file: ${file}`);
+        // Check for Excel files
+        if ((file.endsWith('.xlsx') || file.endsWith('.xls')) && !dataFile) {
+          dataFile = file;
+          dataFileType = 'excel';
+          console.log(`📊 Found Excel file: ${fileName}`);
+        }
+        // Check for CSV files (only if no Excel file found)
+        else if (file.endsWith('.csv') && !dataFile) {
+          dataFile = file;
+          dataFileType = 'csv';
+          console.log(`📊 Found CSV file: ${fileName}`);
         }
       }
       
       // Find images directory (could be at root or in subfolder)
+      // Also check all directories for image files
+      const allDirs = new Set();
+      extractedFiles.forEach(file => {
+        const dir = path.dirname(file);
+        if (dir !== tempDir) {
+          allDirs.add(dir);
+        }
+      });
+      
       const possibleImageDirs = [
         path.join(tempDir, 'images'),
         path.join(tempDir, 'Images'),
         path.join(tempDir, 'test_folder', 'images'),
-        path.join(tempDir, 'test_folder', 'Images')
+        path.join(tempDir, 'test_folder', 'Images'),
+        ...Array.from(allDirs)
       ];
       
       for (const dirPath of possibleImageDirs) {
-        if (fs.existsSync(dirPath)) {
-          imagesDir = dirPath;
-          console.log(`🖼️ Found images directory: ${dirPath}`);
-          break;
+        if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
+          // Check if directory contains image files
+          try {
+            const files = fs.readdirSync(dirPath);
+            const hasImages = files.some(file => 
+              /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(file)
+            );
+            if (hasImages) {
+              imagesDir = dirPath;
+              console.log(`🖼️ Found images directory: ${dirPath}`);
+              break;
+            }
+          } catch (err) {
+            // Skip if can't read directory
+            continue;
+          }
         }
       }
       
-      if (!excelFile) {
-        throw new Error('No Excel file found in ZIP archive');
+      if (!dataFile) {
+        // Try to find any file that might be data
+        const dataFiles = extractedFiles.filter(file => {
+          const ext = path.extname(file).toLowerCase();
+          return ['.csv', '.xlsx', '.xls'].includes(ext);
+        });
+        
+        if (dataFiles.length === 0) {
+          throw new Error('No Excel (.xlsx/.xls) or CSV file found in ZIP archive. Please ensure your ZIP contains at least one data file.');
+        }
       }
       
-      console.log(`📊 Found Excel file: ${path.basename(excelFile)}`);
+      console.log(`📊 Data file: ${dataFile ? path.basename(dataFile) : 'Not found'}`);
       console.log(`🖼️ Images directory: ${imagesDir ? 'Found' : 'Not found'}`);
       
-      // Parse the Excel file
-      const workbook = XLSX.readFile(excelFile);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(worksheet, { defval: null });
+      // Parse the data file
+      let data = [];
+      
+      if (dataFileType === 'excel') {
+        // Parse Excel file
+        const workbook = XLSX.readFile(dataFile);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        data = XLSX.utils.sheet_to_json(worksheet, { defval: null });
+        console.log(`📊 Parsed ${data.length} rows from Excel file`);
+      } else if (dataFileType === 'csv') {
+        // Parse CSV file
+        const csvResult = await this.parseCSV(dataFile);
+        data = csvResult.data;
+        console.log(`📊 Parsed ${data.length} rows from CSV file`);
+      } else {
+        throw new Error('Unable to determine data file type');
+      }
+      
+      if (!data || data.length === 0) {
+        throw new Error('No data rows found in the file. Please check that your file has data.');
+      }
       
       // Process images from the images folder
       let imageMap = {};
@@ -280,43 +355,56 @@ class FileParser {
       
       if (imagesDir && fs.existsSync(imagesDir)) {
         console.log('🖼️ Processing images from ZIP...');
-        const imageFiles = fs.readdirSync(imagesDir).filter(file => 
-          /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(file)
-        );
-        
-        console.log(`Found ${imageFiles.length} image files`);
-        
-        // Copy images to uploads/images and create mapping
-        const uploadsImagesDir = path.join(__dirname, 'uploads', 'images');
-        if (!fs.existsSync(uploadsImagesDir)) {
-          fs.mkdirSync(uploadsImagesDir, { recursive: true });
+        try {
+          const imageFiles = fs.readdirSync(imagesDir).filter(file => 
+            /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(file)
+          );
+          
+          console.log(`📸 Found ${imageFiles.length} image files`);
+          
+          // Copy images to uploads/images and create mapping
+          const uploadsImagesDir = path.join(__dirname, 'uploads', 'images');
+          if (!fs.existsSync(uploadsImagesDir)) {
+            fs.mkdirSync(uploadsImagesDir, { recursive: true });
+          }
+          
+          for (const imageFile of imageFiles) {
+            try {
+              const sourcePath = path.join(imagesDir, imageFile);
+              const uniqueName = `${uuidv4()}${path.extname(imageFile)}`;
+              const destPath = path.join(uploadsImagesDir, uniqueName);
+              
+              // Copy image file
+              fs.copyFileSync(sourcePath, destPath);
+              
+              extractedImages.push({
+                originalName: imageFile,
+                fileName: uniqueName,
+                filePath: destPath,
+                relativePath: `uploads/images/${uniqueName}`,
+                webPath: `/uploads/images/${uniqueName}`
+              });
+              
+              console.log(`📸 Copied ${imageFile} → ${uniqueName}`);
+            } catch (imgError) {
+              console.error(`⚠️ Error copying image ${imageFile}:`, imgError.message);
+            }
+          }
+          
+          // Create image mapping based on photo column values
+          if (extractedImages.length > 0) {
+            imageMap = this.createImageMapFromPhotoColumn(data, extractedImages);
+          }
+        } catch (imgDirError) {
+          console.error('⚠️ Error processing images directory:', imgDirError.message);
+          // Don't fail the whole process if images fail
         }
-        
-        for (const imageFile of imageFiles) {
-          const sourcePath = path.join(imagesDir, imageFile);
-          const uniqueName = `${uuidv4()}${path.extname(imageFile)}`;
-          const destPath = path.join(uploadsImagesDir, uniqueName);
-          
-          // Copy image file
-          fs.copyFileSync(sourcePath, destPath);
-          
-          extractedImages.push({
-            originalName: imageFile,
-            fileName: uniqueName,
-            filePath: destPath,
-            relativePath: `uploads/images/${uniqueName}`,
-            webPath: `/uploads/images/${uniqueName}`
-          });
-          
-          console.log(`📸 Copied ${imageFile} → ${uniqueName}`);
-        }
-        
-        // Create image mapping based on photo column values
-        imageMap = this.createImageMapFromPhotoColumn(data, extractedImages);
       }
       
       // Clean up temporary directory
-      this.cleanupDirectory(tempDir);
+      if (tempDir) {
+        this.cleanupDirectory(tempDir);
+      }
       
       return {
         data: data,
@@ -327,6 +415,16 @@ class FileParser {
       };
       
     } catch (error) {
+      // Clean up temp directory on error
+      if (tempDir) {
+        try {
+          this.cleanupDirectory(tempDir);
+        } catch (cleanupError) {
+          console.error('⚠️ Error cleaning up temp directory:', cleanupError.message);
+        }
+      }
+      
+      console.error('❌ ZIP parsing error:', error);
       throw new Error(`Error parsing ZIP file: ${error.message}`);
     }
   }
