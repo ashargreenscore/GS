@@ -789,17 +789,31 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
 
     // Parse the file with timeout protection
     console.log('📊 Starting file parsing...');
+    console.log(`📁 File path: ${req.file.path}`);
+    console.log(`📁 File type: ${fileType}`);
+    
     let parseResult;
     try {
       // Reduced timeout to 48 seconds to allow time for response (Render timeout is 50s)
       // For larger files, users should split them or upgrade to paid tier
       const parseStartTime = Date.now();
-      parseResult = await Promise.race([
-        fileParser.parseFile(req.file.path, fileType, sellerId, projectId).then(result => {
+      
+      // Wrap parseFile in a promise that ensures it always resolves/rejects
+      const parsePromise = Promise.resolve().then(async () => {
+        try {
+          const result = await fileParser.parseFile(req.file.path, fileType, sellerId, projectId);
           const parseDuration = Date.now() - parseStartTime;
           console.log(`⏱️ File parsing completed in ${(parseDuration / 1000).toFixed(2)} seconds`);
           return result;
-        }),
+        } catch (parseErr) {
+          const parseDuration = Date.now() - parseStartTime;
+          console.error(`❌ File parsing failed after ${(parseDuration / 1000).toFixed(2)} seconds:`, parseErr);
+          throw parseErr;
+        }
+      });
+      
+      parseResult = await Promise.race([
+        parsePromise,
         new Promise((_, reject) => 
           setTimeout(() => {
             const parseDuration = Date.now() - parseStartTime;

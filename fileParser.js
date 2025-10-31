@@ -226,7 +226,15 @@ class FileParser {
   async parseZip(filePath) {
     let tempDir = null;
     try {
-      console.log('📦 Extracting ZIP file:', filePath);
+      console.log('📦 Starting ZIP file processing:', filePath);
+      
+      // Verify file exists and is readable
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`ZIP file not found: ${filePath}`);
+      }
+      
+      const fileStats = fs.statSync(filePath);
+      console.log(`📦 ZIP file size: ${(fileStats.size / 1024).toFixed(2)} KB`);
       
       // Create temporary directory for extraction (use OS temp if available, otherwise local)
       const os = require('os');
@@ -239,8 +247,14 @@ class FileParser {
       }
       
       console.log('🔄 Extracting ZIP contents...');
-      const extractedFiles = await this.extractZipFile(filePath, tempDir);
-      console.log(`✅ Extracted ${extractedFiles.length} files from ZIP`);
+      let extractedFiles;
+      try {
+        extractedFiles = await this.extractZipFile(filePath, tempDir);
+        console.log(`✅ Extracted ${extractedFiles.length} files from ZIP`);
+      } catch (extractError) {
+        console.error('❌ ZIP extraction failed:', extractError);
+        throw new Error(`Failed to extract ZIP file: ${extractError.message}`);
+      }
       
       if (!extractedFiles || extractedFiles.length === 0) {
         throw new Error('ZIP file appears to be empty or extraction failed');
@@ -364,24 +378,41 @@ class FileParser {
       // Parse the data file
       let data = [];
       
-      if (dataFileType === 'excel') {
-        // Parse Excel file
-        const workbook = XLSX.readFile(dataFile);
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        data = XLSX.utils.sheet_to_json(worksheet, { defval: null });
-        console.log(`📊 Parsed ${data.length} rows from Excel file`);
-      } else if (dataFileType === 'csv') {
-        // Parse CSV file
-        const csvResult = await this.parseCSV(dataFile);
-        data = csvResult.data;
-        console.log(`📊 Parsed ${data.length} rows from CSV file`);
-      } else {
-        throw new Error('Unable to determine data file type');
+      try {
+        if (dataFileType === 'excel') {
+          // Parse Excel file
+          console.log(`📖 Reading Excel file: ${dataFile}`);
+          const workbook = XLSX.readFile(dataFile);
+          
+          if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+            throw new Error('Excel file appears to be empty or corrupted');
+          }
+          
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          
+          if (!worksheet) {
+            throw new Error(`Could not read worksheet "${sheetName}" from Excel file`);
+          }
+          
+          data = XLSX.utils.sheet_to_json(worksheet, { defval: null });
+          console.log(`📊 Parsed ${data.length} rows from Excel file`);
+        } else if (dataFileType === 'csv') {
+          // Parse CSV file
+          console.log(`📖 Reading CSV file: ${dataFile}`);
+          const csvResult = await this.parseCSV(dataFile);
+          data = csvResult.data;
+          console.log(`📊 Parsed ${data.length} rows from CSV file`);
+        } else {
+          throw new Error(`Unable to determine data file type: ${dataFileType}`);
+        }
+      } catch (parseError) {
+        console.error('❌ Error parsing data file:', parseError);
+        throw new Error(`Failed to parse ${dataFileType.toUpperCase()} file: ${parseError.message}`);
       }
       
       if (!data || data.length === 0) {
-        throw new Error('No data rows found in the file. Please check that your file has data.');
+        throw new Error('No data rows found in the file. Please check that your file has data and is not empty.');
       }
       
       // Process images from the images folder
@@ -1182,17 +1213,28 @@ class FileParser {
           });
           
           zipfile.on('end', () => {
+            console.log(`📦 ZIP file reading completed. Total entries processed: ${totalEntries}`);
             clearTimeout(extractionTimeout);
             
             // Wait a bit for any pending writes to complete
+            let checkCount = 0;
+            const maxChecks = 50; // 5 seconds max wait (50 * 100ms)
+            
             const checkComplete = setInterval(() => {
-              if (pendingReads === 0 || hasError) {
+              checkCount++;
+              
+              if (pendingReads === 0 || hasError || checkCount >= maxChecks) {
                 clearInterval(checkComplete);
                 
                 if (!isComplete) {
                   isComplete = true;
-                  console.log(`✅ ZIP extraction completed. ${extractedFiles.length} files extracted from ${totalEntries} total entries.`);
-                  resolve(extractedFiles);
+                  if (hasError && extractedFiles.length === 0) {
+                    // If there was an error and no files extracted, reject
+                    reject(new Error('ZIP extraction failed - no files were extracted'));
+                  } else {
+                    console.log(`✅ ZIP extraction completed. ${extractedFiles.length} files extracted from ${totalEntries} total entries.`);
+                    resolve(extractedFiles);
+                  }
                 }
               }
             }, 100);
@@ -1202,10 +1244,14 @@ class FileParser {
               clearInterval(checkComplete);
               if (!isComplete) {
                 isComplete = true;
-                console.log(`✅ ZIP extraction completed (with ${pendingReads} pending operations). ${extractedFiles.length} files extracted.`);
-                resolve(extractedFiles);
+                if (extractedFiles.length === 0) {
+                  reject(new Error('ZIP extraction timeout - no files were extracted'));
+                } else {
+                  console.log(`✅ ZIP extraction completed (with ${pendingReads} pending operations). ${extractedFiles.length} files extracted.`);
+                  resolve(extractedFiles);
+                }
               }
-            }, 2000);
+            }, 5000); // Increased to 5 seconds for safety
           });
           
           zipfile.on('error', (err) => {
