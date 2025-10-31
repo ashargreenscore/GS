@@ -923,7 +923,14 @@ class FileParser {
     // Normalize category name to match frontend categories
     category = this.normalizeCategoryName(category);
     
-    // If no valid category found, default to 'Other'
+    // If still no category, try to categorize based on material name
+    if (!category || category.trim() === '') {
+      category = this.categorizeItem(materialName);
+      // Normalize the categorized result
+      category = this.normalizeCategoryName(category);
+    }
+    
+    // If no valid category found after all attempts, default to 'Other'
     if (!category || category.trim() === '') {
       category = 'Other';
     }
@@ -1185,20 +1192,40 @@ class FileParser {
     
     const name = materialName.toLowerCase();
     
+    // Check for furniture items first (before other matches)
+    if (name.includes('furniture') || name.includes('cabinet') || name.includes('chair') || 
+        name.includes('table') || name.includes('pouf') || name.includes('sofa') || 
+        name.includes('bed') || name.includes('wardrobe') || name.includes('dresser') ||
+        name.includes('center table') || name.includes('coffee table') || name.includes('side table')) {
+      return 'Furniture';
+    }
+    
+    // Check for plumbing items (geyser, water heater, etc.)
+    if (name.includes('geyser') || name.includes('water heater') || name.includes('hot water')) {
+      return 'Plumbing';
+    }
+    
     if (name.includes('door')) return 'Doors';
-    if (name.includes('tile') || name.includes('ceramic') || name.includes('marble') || name.includes('granite')) return 'Tile';
-    if (name.includes('handle') || name.includes('knob') || name.includes('lock') || name.includes('hinge')) return 'Hardware';
-    if (name.includes('toilet') || name.includes('sink') || name.includes('basin') || name.includes('faucet') || name.includes('tap')) return 'Sanitary';
-    if (name.includes('bath') || name.includes('shower')) return 'Bathroom';
+    if (name.includes('tile') || name.includes('ceramic') || name.includes('marble') || name.includes('granite')) {
+      // Distinguish between tiles and marbles
+      if (name.includes('marble') || name.includes('granite')) return 'Marbles';
+      return 'Tiles';
+    }
+    if (name.includes('handle') || name.includes('knob') || name.includes('lock') || name.includes('hinge')) {
+      return 'Handles & Hardware';
+    }
+    if (name.includes('toilet') || name.includes('sink') || name.includes('basin') || name.includes('faucet') || name.includes('tap')) {
+      return 'Toilets & Sanitary';
+    }
+    if (name.includes('bath') || name.includes('shower')) return 'Toilets & Sanitary';
     if (name.includes('window') || name.includes('glass')) return 'Windows';
     if (name.includes('floor') || name.includes('laminate') || name.includes('vinyl') || name.includes('carpet')) return 'Flooring';
-    if (name.includes('light') || name.includes('lamp') || name.includes('bulb') || name.includes('fixture')) return 'Lights';
-    if (name.includes('fan') || name.includes('ventilat')) return 'Fans';
-    if (name.includes('furniture') || name.includes('cabinet') || name.includes('chair') || name.includes('table')) return 'Furniture';
+    if (name.includes('light') || name.includes('lamp') || name.includes('bulb') || name.includes('fixture')) return 'Lighting';
+    if (name.includes('fan') || name.includes('ventilat')) return 'Lighting';
     if (name.includes('paint') || name.includes('primer') || name.includes('varnish') || name.includes('coating')) return 'Paint & Finishes';
     if (name.includes('pipe') || name.includes('plumb') || name.includes('valve')) return 'Plumbing';
-    if (name.includes('wire') || name.includes('electric') || name.includes('switch') || name.includes('outlet')) return 'Electrical';
-    if (name.includes('appliance') || name.includes('refrigerat') || name.includes('washing') || name.includes('dishwash')) return 'Big Appliances';
+    if (name.includes('wire') || name.includes('electric') || name.includes('switch') || name.includes('outlet') || name.includes('socket')) return 'Electrical';
+    if (name.includes('appliance') || name.includes('refrigerat') || name.includes('washing') || name.includes('dishwash')) return 'Other';
     
     return 'Other';
   }
