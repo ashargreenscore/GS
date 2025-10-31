@@ -909,12 +909,14 @@ class FileParser {
       }
     }
 
+    // Extract inventory type code first (needed for both category mapping and material object)
+    const inventoryTypeCode = this.findColumnValue(row, this.columnMappings.inventoryType);
+    
     // First, try to get category directly from Excel "Category" column
     let category = this.findColumnValue(row, this.columnMappings.category);
     
     // If no direct category column, use inventory type code mapping
     if (!category || category.trim() === '') {
-      const inventoryTypeCode = this.findColumnValue(row, this.columnMappings.inventoryType);
       category = this.mapInventoryTypeToCategory(inventoryTypeCode);
     }
     
