@@ -249,11 +249,18 @@ class FileParser {
       console.log('🔄 Extracting ZIP contents...');
       let extractedFiles;
       try {
+        console.log(`📦 Attempting to extract ZIP from: ${filePath}`);
+        console.log(`📁 Extracting to: ${tempDir}`);
         extractedFiles = await this.extractZipFile(filePath, tempDir);
-        console.log(`✅ Extracted ${extractedFiles.length} files from ZIP`);
+        console.log(`✅ Successfully extracted ${extractedFiles.length} files from ZIP`);
+        
+        if (!Array.isArray(extractedFiles)) {
+          throw new Error(`Extraction returned invalid data type: ${typeof extractedFiles}`);
+        }
       } catch (extractError) {
         console.error('❌ ZIP extraction failed:', extractError);
-        throw new Error(`Failed to extract ZIP file: ${extractError.message}`);
+        console.error('Extraction error stack:', extractError.stack);
+        throw new Error(`Failed to extract ZIP file: ${extractError.message || extractError.toString()}`);
       }
       
       if (!extractedFiles || extractedFiles.length === 0) {
