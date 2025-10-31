@@ -37,3 +37,6 @@ build/
 *.xlsx
 Master*.pdf
 Master*.xlsx
+
+# Deployment secrets
+DEPLOYMENT_SECRET.txt
