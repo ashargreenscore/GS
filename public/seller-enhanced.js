@@ -1833,20 +1833,36 @@ async function uploadCSV() {
             let errorData;
             const contentType = response.headers.get('content-type');
             
+            console.error(`❌ Server returned error status: ${response.status} ${response.statusText}`);
+            
             if (contentType && contentType.includes('application/json')) {
                 try {
                     errorData = await response.json();
+                    console.error('❌ Server error response:', errorData);
                 } catch (jsonError) {
                     console.error('Failed to parse error response as JSON:', jsonError);
-                    const text = await response.text();
-                    throw new Error(`Server error (${response.status}): ${text || response.statusText}`);
+                    try {
+                        const text = await response.text();
+                        console.error('Server error text:', text);
+                        throw new Error(`Server error (${response.status}): ${text || response.statusText}`);
+                    } catch (textError) {
+                        throw new Error(`Server returned error ${response.status}: ${response.statusText}`);
+                    }
                 }
             } else {
-                const text = await response.text();
-                throw new Error(`Server error (${response.status}): ${text || response.statusText}`);
+                try {
+                    const text = await response.text();
+                    console.error('Server error text (non-JSON):', text);
+                    throw new Error(`Server error (${response.status}): ${text || response.statusText}`);
+                } catch (textError) {
+                    throw new Error(`Server returned error ${response.status}: ${response.statusText}`);
+                }
             }
             
-            throw new Error(errorData?.message || errorData?.error || `Server returned error: ${response.status} ${response.statusText}`);
+            // Extract meaningful error message
+            const serverErrorMsg = errorData?.message || errorData?.error || errorData?.details || `Server returned error: ${response.status} ${response.statusText}`;
+            console.error('❌ Throwing error with message:', serverErrorMsg);
+            throw new Error(serverErrorMsg);
         }
         
         // Update progress to completion
@@ -1935,28 +1951,44 @@ async function uploadCSV() {
         // Show error in progress bar
         progressFill.style.width = '100%';
         progressFill.style.backgroundColor = '#ef4444';
-        progressText.textContent = 'Network error occurred!';
         
         let errorMessage = 'Error uploading file';
+        let isNetworkError = false;
         
         // Handle specific error types
-        if (error.name === 'AbortError' || error.name === 'TimeoutError' || (error.message && error.message.includes('timeout'))) {
-            errorMessage = 'Upload timeout: The file is too large or processing takes too long. Try:\n• Splitting the ZIP file into smaller files\n• Compressing files more efficiently\n• Uploading CSV/Excel files instead\n• Contact support if issue persists';
-        } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            errorMessage = 'Network connection error. Please check your internet connection and try again.';
+        if (error.name === 'AbortError') {
+            progressText.textContent = 'Upload timeout!';
+            errorMessage = 'Upload timeout: The file processing took too long (48 seconds). Try:\n• Splitting the ZIP file into smaller files\n• Compressing files more efficiently\n• Uploading CSV/Excel files directly instead';
+            isNetworkError = false; // This is a timeout, not a network issue
+        } else if (error.name === 'TypeError' && (error.message.includes('fetch') || error.message.includes('Failed to fetch'))) {
+            progressText.textContent = 'Network connection error!';
+            errorMessage = 'Network connection error. Please check:\n• Your internet connection\n• If greenscore.world is accessible\n• Try refreshing the page';
+            isNetworkError = true; // This is a true network issue
+        } else if (error.message && error.message.includes('timeout')) {
+            progressText.textContent = 'Processing timeout!';
+            errorMessage = `Processing timeout: ${error.message}\n\nTry splitting your file into smaller batches.`;
+            isNetworkError = false;
         } else if (error.message) {
-            errorMessage = `Error: ${error.message}`;
-        } else if (error.toString) {
+            // Server error or other error
+            progressText.textContent = 'Upload failed!';
+            errorMessage = error.message;
+            isNetworkError = false;
+        } else {
+            progressText.textContent = 'Upload error!';
             errorMessage = `Error: ${error.toString()}`;
+            isNetworkError = false;
         }
         
-        showNotification(errorMessage, 'error');
-        console.error('Upload error:', error);
-        console.error('Error details:', {
+        // Log detailed error information
+        console.error('❌ Upload error details:', {
             name: error.name,
             message: error.message,
-            stack: error.stack
+            stack: error.stack,
+            isNetworkError: isNetworkError,
+            errorObject: error
         });
+        
+        showNotification(errorMessage, 'error');
     } finally {
         // Reset progress bar after delay
         setTimeout(() => {
