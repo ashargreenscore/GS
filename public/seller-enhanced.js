@@ -1802,13 +1802,23 @@ async function uploadCSV() {
     const progressFill = uploadProgress.querySelector('.progress-fill');
     progressFill.style.width = '20%';
     
+    // Create AbortController for timeout (45 seconds - Render free tier has 50s limit)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.log('⏱️ Request timeout - aborting');
+    }, 45000); // 45 seconds to avoid Render's 50s timeout
+    
     try {
         console.log('🌐 Sending request to /api/upload-file...');
         
         const response = await fetch('/api/upload-file', {
             method: 'POST',
-            body: formData
+            body: formData,
+            signal: controller.signal
         });
+        
+        clearTimeout(timeoutId); // Clear timeout if request completes successfully
         
         console.log('📡 Response received:', {
             status: response.status,
@@ -1920,6 +1930,8 @@ async function uploadCSV() {
             showNotification(errorMessage, 'error');
         }
     } catch (error) {
+        clearTimeout(timeoutId); // Make sure to clear timeout
+        
         // Show error in progress bar
         progressFill.style.width = '100%';
         progressFill.style.backgroundColor = '#ef4444';
@@ -1927,8 +1939,10 @@ async function uploadCSV() {
         
         let errorMessage = 'Error uploading file';
         
-        // Provide more specific error messages
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        // Handle specific error types
+        if (error.name === 'AbortError' || error.name === 'TimeoutError' || (error.message && error.message.includes('timeout'))) {
+            errorMessage = 'Upload timeout: The file is too large or processing takes too long. Try:\n• Splitting the ZIP file into smaller files\n• Compressing files more efficiently\n• Uploading CSV/Excel files instead\n• Contact support if issue persists';
+        } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
             errorMessage = 'Network connection error. Please check your internet connection and try again.';
         } else if (error.message) {
             errorMessage = `Error: ${error.message}`;

@@ -25,6 +25,14 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
 
+// Increase timeout for file upload endpoint (5 minutes for processing large files)
+app.use('/api/upload-file', (req, res, next) => {
+    // Set longer timeout for file uploads
+    req.setTimeout(300000); // 5 minutes
+    res.setTimeout(300000);
+    next();
+});
+
 // Enhanced multer configuration for multiple file types
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -770,10 +778,12 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
     console.log('📊 Starting file parsing...');
     let parseResult;
     try {
+      // Reduced timeout to 45 seconds to match Render's free tier limit
+      // For larger files, users should split them or upgrade to paid tier
       parseResult = await Promise.race([
         fileParser.parseFile(req.file.path, fileType, sellerId, projectId),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('File parsing timeout - file may be too large or complex')), 300000) // 5 minute timeout
+          setTimeout(() => reject(new Error('File parsing timeout - file may be too large or complex. Try splitting into smaller files.')), 45000) // 45 second timeout to avoid Render's 50s limit
         )
       ]);
     } catch (parseError) {
