@@ -12,23 +12,69 @@ class FileParser {
     // Initialize image extractor
     this.imageExtractor = new ImageExtractor();
     
-    // Column mapping for flexible parsing
+    // Column mapping for flexible parsing - expanded with more variations
     this.columnMappings = {
-      material: ['material', 'item', 'product', 'name', 'description', 'item name', 'product name', 'material name'],
-      qty: ['qty', 'qty.', 'quantity', 'amount', 'count', 'stock', 'available', 'units'],
-      unit: ['unit', 'units', 'measurement', 'uom', 'unit of measure'],
-      brand: ['brand', 'manufacturer', 'make', 'company'],
-      condition: ['condition', 'state', 'quality', 'grade'],
-      priceToday: ['price today', 'current price', 'selling price', 'price', 'cost', 'unit price', 'rate'],
-      mrp: ['mrp', 'retail price', 'original price', 'list price', 'msrp'],
-      pricePurchased: ['price purchased', 'purchase price', 'bought price', 'cost price'],
-      inventoryType: ['inventory type', 'type', 'category type', 'stock type'],
-      specs: ['specs', 'specifications', 'details', 'description', 'features'],
-      photo: ['photo', 'image', 'picture', 'url', 'image url', 'photo url'],
-      specsPhoto: ['specs photo', 'spec image', 'specification image', 'tech sheet'],
-      category: ['category', 'group', 'class', 'type'],
-      dimensions: ['dimensions', 'size', 'measurements', 'length x width', 'l x w x h'],
-      weight: ['weight', 'mass', 'kg', 'lbs', 'pounds']
+      material: [
+        'material', 'material name', 'material_name', 'item', 'item name', 'item_name', 
+        'product', 'product name', 'product_name', 'name', 'description', 'item description',
+        'product description', 'material description', 'item description', 'item_description'
+      ],
+      qty: [
+        'qty', 'qty.', 'quantity', 'qty', 'qty.', 'qty', 'amount', 'count', 'stock', 
+        'available', 'available quantity', 'available_quantity', 'units', 'unit quantity',
+        'qty available', 'stock quantity', 'stock_quantity'
+      ],
+      unit: [
+        'unit', 'units', 'measurement', 'uom', 'unit of measure', 'unit_of_measure',
+        'unit type', 'unit_type', 'measuring unit'
+      ],
+      brand: [
+        'brand', 'manufacturer', 'make', 'company', 'brand name', 'brand_name',
+        'manufacturer name', 'make name'
+      ],
+      condition: [
+        'condition', 'state', 'quality', 'grade', 'item condition', 'condition status'
+      ],
+      priceToday: [
+        'price today', 'price_today', 'current price', 'current_price', 'selling price', 'selling_price',
+        'price', 'cost', 'unit price', 'unit_price', 'rate', 'selling rate', 'rate per unit',
+        'price per unit', 'price_per_unit', 'today price', 'today_price'
+      ],
+      mrp: [
+        'mrp', 'retail price', 'retail_price', 'original price', 'original_price', 
+        'list price', 'list_price', 'msrp', 'marked price', 'marked_price'
+      ],
+      pricePurchased: [
+        'price purchased', 'price_purchased', 'purchase price', 'purchase_price',
+        'bought price', 'bought_price', 'cost price', 'cost_price', 'purchase cost'
+      ],
+      inventoryType: [
+        'inventory type', 'inventory_type', 'type', 'category type', 'category_type',
+        'stock type', 'stock_type', 'inventory code'
+      ],
+      specs: [
+        'specs', 'specifications', 'specification', 'details', 'description', 'features',
+        'item specs', 'product specs', 'technical specs'
+      ],
+      photo: [
+        'photo', 'image', 'picture', 'url', 'image url', 'image_url', 'photo url', 'photo_url',
+        'picture url', 'img', 'image link', 'photo link'
+      ],
+      specsPhoto: [
+        'specs photo', 'spec photo', 'spec image', 'specification image', 'tech sheet',
+        'technical sheet'
+      ],
+      category: [
+        'category', 'group', 'class', 'type', 'item category', 'product category',
+        'category name', 'classification'
+      ],
+      dimensions: [
+        'dimensions', 'size', 'measurements', 'length x width', 'length x width x height',
+        'l x w x h', 'dimension', 'sizes'
+      ],
+      weight: [
+        'weight', 'mass', 'kg', 'lbs', 'pounds', 'weight kg', 'weight_kg'
+      ]
     };
   }
 
@@ -909,19 +955,48 @@ class FileParser {
   }
 
   findColumnValue(data, fieldMappings) {
+    // First, normalize the data keys to handle Excel's quirky column names
+    const normalizedData = {};
+    for (const key in data) {
+      // Remove extra spaces, convert to lowercase for matching
+      const normalizedKey = key.trim().replace(/\s+/g, ' ');
+      normalizedData[normalizedKey.toLowerCase()] = data[key];
+      normalizedData[key] = data[key]; // Keep original too
+    }
+    
     for (const mapping of fieldMappings) {
-      // Try exact match first
+      // Try exact match first (case-sensitive)
       let value = data[mapping];
       if (value !== undefined && value !== null && value !== '') {
-        return String(value).trim();
+        const strValue = String(value).trim();
+        if (strValue !== '') {
+          return strValue;
+        }
       }
 
       // Try case-insensitive match
+      const mappingLower = mapping.toLowerCase().trim();
+      value = normalizedData[mappingLower];
+      if (value !== undefined && value !== null && value !== '') {
+        const strValue = String(value).trim();
+        if (strValue !== '') {
+          return strValue;
+        }
+      }
+      
+      // Try partial matching (e.g., "Material Name" matches "Material")
       for (const key in data) {
-        if (key.toLowerCase() === mapping.toLowerCase()) {
+        const keyLower = key.toLowerCase().trim().replace(/\s+/g, ' ');
+        const mappingWords = mappingLower.split(/[\s_\-]+/);
+        
+        // Check if all words in mapping are present in the key
+        if (mappingWords.every(word => word.length > 0 && keyLower.includes(word))) {
           value = data[key];
           if (value !== undefined && value !== null && value !== '') {
-            return String(value).trim();
+            const strValue = String(value).trim();
+            if (strValue !== '') {
+              return strValue;
+            }
           }
         }
       }
