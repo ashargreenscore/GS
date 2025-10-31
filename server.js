@@ -104,12 +104,46 @@ const categories = [
   'Paint & Finishes',
   'Plumbing',
   'Electrical',
+  'Furniture',
+  'Marbles',
   'Other'
 ];
 
 // API Routes
 
 // User validation endpoint
+// Get user details by ID
+app.get('/api/users/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await db.findUserById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    
+    // Return user data (excluding password hash)
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        company_name: user.company_name,
+        phone: user.phone,
+        designation: user.designation,
+        project_name: user.project_name,
+        address: user.address,
+        user_type: user.user_type,
+        verification_status: user.verification_status
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get user error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch user' });
+  }
+});
+
 app.get('/api/users/:userId/validate', async (req, res) => {
   try {
     const { userId } = req.params;
@@ -131,20 +165,72 @@ app.get('/api/users/:userId/validate', async (req, res) => {
   }
 });
 
+// Update user details
+app.put('/api/users/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { name, company_name, phone, designation, project_name, address } = req.body;
+    
+    console.log('📝 Updating user:', userId, { name, company_name, phone, designation, project_name, address });
+    
+    // Validate required fields
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Name is required' });
+    }
+    
+    // Update user in database
+    await db.updateUser(userId, {
+      name,
+      company_name: company_name || null,
+      phone: phone || null,
+      designation: designation || null,
+      project_name: project_name || null,
+      address: address || null
+    });
+    
+    console.log('✅ User updated successfully');
+    res.json({ success: true, message: 'User updated successfully' });
+  } catch (error) {
+    console.error('❌ Update user error:', error);
+    res.status(500).json({ success: false, error: 'Failed to update user' });
+  }
+});
+
 // Authentication endpoints
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password, userType } = req.body;
     
+    console.log('🔐 LOGIN ATTEMPT:', { email, userType, passwordLength: password?.length });
+    
     const user = await db.findUserByEmail(email);
+    
     if (!user) {
+      console.log('❌ User not found:', email);
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+    
+    console.log('✅ User found:', { 
+      id: user.id, 
+      email: user.email, 
+      user_type: user.user_type,
+      hasPasswordHash: !!user.password_hash 
+    });
+
+    const isValidPassword = await db.verifyPassword(password, user.password_hash);
+    
+    console.log('🔑 Password verification:', { 
+      isValid: isValidPassword,
+      passwordHashLength: user.password_hash?.length,
+      passwordProvided: password ? 'yes' : 'no'
+    });
+    
+    if (!isValidPassword) {
+      console.log('❌ Invalid password for user:', email);
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    const isValidPassword = await db.verifyPassword(password, user.password_hash);
-    if (!isValidPassword) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
+    console.log('✅ Login successful for:', email, 'User type:', user.user_type);
 
     // Use the registered user type for redirect, not the login selection
     res.json({ 
@@ -159,7 +245,8 @@ app.post('/api/auth/login', async (req, res) => {
       } 
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Login error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -359,15 +446,24 @@ app.put('/api/materials/:materialId/edit', async (req, res) => {
     const { materialId } = req.params;
     const { userId, ...updateData } = req.body;
     
+    console.log('📝 Update material request:', { materialId, userId, updateData });
+    
     if (!userId) {
       return res.status(400).json({ success: false, error: 'User ID required' });
     }
     
+    if (!materialId) {
+      return res.status(400).json({ success: false, error: 'Material ID required' });
+    }
+    
     const result = await db.updateMaterialWithLock(materialId, userId, updateData);
+    
+    console.log('✅ Material updated successfully:', result);
     res.json(result);
   } catch (error) {
-    console.error('Update material error:', error);
-    res.status(400).json({ success: false, error: error.message });
+    console.error('❌ Update material error:', error);
+    console.error('Error stack:', error.stack);
+    res.status(400).json({ success: false, error: error.message || 'Failed to update material' });
   }
 });
 
@@ -595,6 +691,8 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
   console.log('👤 Seller ID:', req.body.sellerId);
   console.log('🏗️ Project ID:', req.body.projectId);
   
+  let filePath = null;
+  
   try {
     if (!req.file) {
       console.log('❌ ERROR: No file uploaded');
@@ -605,11 +703,20 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
       });
     }
 
+    filePath = req.file.path;
     const { sellerId, projectId } = req.body;
     console.log('✅ Validating request data...');
     
     if (!sellerId) {
       console.log('❌ ERROR: Seller ID missing');
+      // Clean up file
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (cleanupError) {
+          console.error('Error cleaning up file:', cleanupError);
+        }
+      }
       return res.status(400).json({
         success: false,
         error: 'Seller ID is required',
@@ -619,6 +726,14 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
 
     if (!projectId) {
       console.log('❌ ERROR: Project ID missing');
+      // Clean up file
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (cleanupError) {
+          console.error('Error cleaning up file:', cleanupError);
+        }
+      }
       return res.status(400).json({
         success: false,
         error: 'Project ID is required', 
@@ -634,7 +749,14 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
     
     if (!fileType) {
       console.log('❌ ERROR: Unsupported file type');
-      fs.unlinkSync(req.file.path); // Clean up
+      // Clean up file
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (cleanupError) {
+          console.error('Error cleaning up file:', cleanupError);
+        }
+      }
       return res.status(400).json({
         success: false,
         error: 'Unsupported file type',
@@ -644,72 +766,111 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
 
     console.log(`🔄 Processing ${fileType.toUpperCase()} file: ${req.file.originalname}`);
 
-    // Parse the file
+    // Parse the file with timeout protection
     console.log('📊 Starting file parsing...');
-    const parseResult = await fileParser.parseFile(
-      req.file.path, 
-      fileType, 
-      sellerId, 
-      projectId
-    );
+    let parseResult;
+    try {
+      parseResult = await Promise.race([
+        fileParser.parseFile(req.file.path, fileType, sellerId, projectId),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('File parsing timeout - file may be too large or complex')), 300000) // 5 minute timeout
+        )
+      ]);
+    } catch (parseError) {
+      console.error('❌ File parsing error:', parseError);
+      // Clean up file
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (cleanupError) {
+          console.error('Error cleaning up file:', cleanupError);
+        }
+      }
+      return res.status(400).json({
+        success: false,
+        error: parseError.message || 'Failed to parse file',
+        message: 'An error occurred while parsing your file. Please check the file format and try again.',
+        details: parseError.toString()
+      });
+    }
     
     console.log('📊 Parse result:', {
-      success: parseResult.success,
-      materialsCount: parseResult.materials?.length || 0,
-      errors: parseResult.errors?.length || 0
+      success: parseResult?.success,
+      materialsCount: parseResult?.materials?.length || 0,
+      errors: parseResult?.errors?.length || 0
     });
 
     // Clean up uploaded file
-    fs.unlinkSync(req.file.path);
+    if (filePath && fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.error('Warning: Error cleaning up file:', cleanupError);
+      }
+    }
 
-    if (!parseResult.success) {
+    if (!parseResult || !parseResult.success) {
       return res.status(400).json({
         success: false,
-        error: parseResult.error,
+        error: parseResult?.error || 'Failed to parse file',
         message: 'Failed to parse file',
-        errors: parseResult.errors
+        errors: parseResult?.errors || []
       });
     }
 
     // If no valid materials found
-    if (parseResult.materials.length === 0) {
+    if (!parseResult.materials || parseResult.materials.length === 0) {
       return res.status(400).json({
         success: false,
         error: 'No valid materials found',
         message: 'Please ensure your file contains valid material data with required columns: material name, quantity, and price',
-        errors: parseResult.errors
+        errors: parseResult.errors || []
       });
     }
 
     // If there are errors but some materials were processed
-    if (parseResult.errors.length > 0) {
+    if (parseResult.errors && parseResult.errors.length > 0) {
       // Save successful materials to database
       if (parseResult.materials.length > 0) {
-        await db.createMaterialsBulk(parseResult.materials);
+        try {
+          await db.createMaterialsBulk(parseResult.materials);
+        } catch (dbError) {
+          console.error('❌ Database error saving materials:', dbError);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to save materials to database',
+            message: 'Some materials were parsed successfully but could not be saved. Please try again.',
+            details: dbError.message
+          });
+        }
       }
 
       // Log the upload
-      await db.createUploadLog({
-        id: uuidv4(),
-        userId: sellerId,
-        projectId: projectId,
-        filename: req.file.originalname,
-        fileType: fileType,
-        totalRows: parseResult.totalRows,
-        successfulRows: parseResult.successfulRows,
-        failedRows: parseResult.failedRows,
-        errors: parseResult.errors
-      });
+      try {
+        await db.createUploadLog({
+          id: uuidv4(),
+          userId: sellerId,
+          projectId: projectId,
+          filename: req.file.originalname,
+          fileType: fileType,
+          totalRows: parseResult.totalRows || 0,
+          successfulRows: parseResult.successfulRows || 0,
+          failedRows: parseResult.failedRows || 0,
+          errors: parseResult.errors
+        });
+      } catch (logError) {
+        console.error('Warning: Failed to log upload:', logError);
+      }
 
       return res.status(206).json({ // 206 Partial Content
         success: true,
         partialSuccess: true,
-        count: parseResult.successfulRows,
-        totalRows: parseResult.totalRows,
-        failedRows: parseResult.failedRows,
+        count: parseResult.successfulRows || parseResult.materials.length,
+        totalRows: parseResult.totalRows || 0,
+        failedRows: parseResult.failedRows || 0,
         materials: parseResult.materials,
         errors: parseResult.errors.slice(0, 10), // Limit errors shown
-        message: `Successfully imported ${parseResult.successfulRows} items. ${parseResult.failedRows} items had errors.`
+        message: `Successfully imported ${parseResult.successfulRows || parseResult.materials.length} items. ${parseResult.failedRows || 0} items had errors.`
       });
     }
 
@@ -717,22 +878,36 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
     console.log('💾 Saving materials to database...');
     console.log('📊 Materials to save:', parseResult.materials.length);
     
-    const dbResult = await db.createMaterialsBulk(parseResult.materials);
-    console.log('✅ Database save result:', dbResult);
+    try {
+      const dbResult = await db.createMaterialsBulk(parseResult.materials);
+      console.log('✅ Database save result:', dbResult);
+    } catch (dbError) {
+      console.error('❌ Database error saving materials:', dbError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save materials to database',
+        message: 'Materials were parsed successfully but could not be saved. Please try again.',
+        details: dbError.message
+      });
+    }
 
     // Log the successful upload
     console.log('📝 Creating upload log...');
-    await db.createUploadLog({
-      id: uuidv4(),
-      userId: sellerId,
-      projectId: projectId,
-      filename: req.file.originalname,
-      fileType: fileType,
-      totalRows: parseResult.totalRows,
-      successfulRows: parseResult.successfulRows,
-      failedRows: 0,
-      errors: []
-    });
+    try {
+      await db.createUploadLog({
+        id: uuidv4(),
+        userId: sellerId,
+        projectId: projectId,
+        filename: req.file.originalname,
+        fileType: fileType,
+        totalRows: parseResult.totalRows || parseResult.materials.length,
+        successfulRows: parseResult.successfulRows || parseResult.materials.length,
+        failedRows: 0,
+        errors: []
+      });
+    } catch (logError) {
+      console.error('Warning: Failed to log upload:', logError);
+    }
 
     console.log('🎉 UPLOAD COMPLETED SUCCESSFULLY!');
     console.log('📊 Final stats:', {
@@ -749,18 +924,29 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('File upload error:', error);
+    console.error('❌ File upload error:', error);
+    console.error('Error stack:', error.stack);
     
     // Clean up file if it exists
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    if (filePath && fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.error('Error cleaning up file:', cleanupError);
+      }
+    }
+
+    // Check if response was already sent
+    if (res.headersSent) {
+      console.error('❌ Response already sent, cannot send error response');
+      return;
     }
 
     res.status(500).json({ 
       success: false,
       error: 'Server error during file processing',
       message: 'An error occurred while processing your file. Please try again.',
-      details: error.message
+      details: error.message || error.toString()
     });
   }
 });
@@ -1111,7 +1297,7 @@ app.get('/api/admin/users', async (req, res) => {
 
 app.get('/api/admin/materials', async (req, res) => {
   try {
-    const { projectId, listingType, sellerId } = req.query;
+    const { projectId, listingType, sellerId, category } = req.query;
     
     let materials = await db.getAllMaterials();
     
@@ -1126,6 +1312,10 @@ app.get('/api/admin/materials', async (req, res) => {
     
     if (sellerId && sellerId !== 'all') {
       materials = materials.filter(m => m.seller_id === sellerId);
+    }
+    
+    if (category && category !== 'all') {
+      materials = materials.filter(m => m.category === category);
     }
     
     res.json({ success: true, materials });
@@ -1152,6 +1342,38 @@ app.get('/api/admin/orders', async (req, res) => {
   } catch (error) {
     console.error('❌ Get all orders error:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch orders' });
+  }
+});
+
+// Get buyer orders
+app.get('/api/buyer/orders', async (req, res) => {
+  try {
+    const userId = req.query.userId || req.headers['user-id'];
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'User ID required' });
+    }
+    
+    const orders = await db.getOrdersByBuyer(userId);
+    res.json({ success: true, orders });
+  } catch (error) {
+    console.error('❌ Get buyer orders error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch orders' });
+  }
+});
+
+// Get buyer order requests
+app.get('/api/buyer/order-requests', async (req, res) => {
+  try {
+    const userId = req.query.userId || req.headers['user-id'];
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'User ID required' });
+    }
+    
+    const requests = await db.getOrderRequestsByBuyer(userId);
+    res.json({ success: true, requests });
+  } catch (error) {
+    console.error('❌ Get buyer order requests error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch order requests' });
   }
 });
 
@@ -1424,24 +1646,46 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Error handling middleware
+// Error handling middleware - must be after all routes
 app.use((error, req, res, next) => {
-  console.error('Server error:', error);
+  console.error('❌ Server error middleware:', error);
+  console.error('Error stack:', error.stack);
   
+  // Handle multer errors
   if (error instanceof multer.MulterError) {
+    console.error('Multer error:', error.code);
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
         error: 'File too large',
         message: 'File size must be less than 50MB'
       });
+    } else if (error.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({
+        success: false,
+        error: 'Unexpected file field',
+        message: 'Please use the correct file field name'
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'File upload error',
+        message: error.message || 'An error occurred while uploading the file'
+      });
     }
+  }
+  
+  // Check if response was already sent
+  if (res.headersSent) {
+    console.error('❌ Response already sent, cannot send error response');
+    return next(error);
   }
   
   res.status(500).json({
     success: false,
     error: 'Internal server error',
-    message: 'An unexpected error occurred'
+    message: 'An unexpected error occurred',
+    details: process.env.NODE_ENV === 'development' ? error.message : undefined
   });
 });
 

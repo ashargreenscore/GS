@@ -31,6 +31,7 @@ async function initializeAdminDashboard() {
     
     await loadSystemStats();
     await loadProjects();
+    await loadCategories();
     await loadUsers();
     
     setupEventListeners();
@@ -65,7 +66,6 @@ function updateStatsDisplay(stats) {
     document.getElementById('stat-pending').textContent = formatIndianNumber(stats.pendingRequests);
     document.getElementById('stat-orders').textContent = formatIndianNumber(stats.completedOrders);
     document.getElementById('stat-revenue').textContent = formatIndianCurrency(stats.totalRevenue);
-    document.getElementById('stat-transfers').textContent = formatIndianNumber(stats.totalTransfers);
 }
 
 // Tab Management
@@ -190,11 +190,45 @@ async function loadProjects() {
     }
 }
 
+async function loadCategories() {
+    try {
+        const response = await fetch('/api/categories');
+        const categories = await response.json();
+        
+        // Populate category filter in materials section
+        const categoryFilter = document.getElementById('admin-category-filter');
+        if (categoryFilter && Array.isArray(categories)) {
+            categoryFilter.innerHTML = '<option value="all">All Categories</option>';
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                categoryFilter.appendChild(option);
+            });
+        }
+        
+        // Populate category dropdown in edit modal
+        const editCategorySelect = document.getElementById('edit-category');
+        if (editCategorySelect && Array.isArray(categories)) {
+            editCategorySelect.innerHTML = '<option value="">Select Category</option>';
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                editCategorySelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading categories:', error);
+    }
+}
+
 async function loadMaterials() {
     try {
         const projectId = document.getElementById('admin-project-filter')?.value || 'all';
         const listingType = document.getElementById('admin-listing-filter')?.value || 'all';
         const sellerId = document.getElementById('admin-seller-filter')?.value || 'all';
+        const category = document.getElementById('admin-category-filter')?.value || 'all';
         
         let url = '/api/admin/materials?';
         const params = new URLSearchParams();
@@ -202,6 +236,7 @@ async function loadMaterials() {
         if (projectId !== 'all') params.append('projectId', projectId);
         if (listingType !== 'all') params.append('listingType', listingType);
         if (sellerId !== 'all') params.append('sellerId', sellerId);
+        if (category !== 'all') params.append('category', category);
         
         const response = await fetch(url + params.toString());
         const result = await response.json();
@@ -387,12 +422,15 @@ async function loadOrderRequests() {
 function displayOrderRequests() {
     const tableBody = document.getElementById('requests-table-body');
     
-    if (orderRequests.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">No order requests found</td></tr>';
+    // Filter to show only pending requests (approved/rejected should be cleared from requests tab)
+    const pendingRequests = orderRequests.filter(request => request.status === 'pending');
+    
+    if (pendingRequests.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">No pending order requests found</td></tr>';
         return;
     }
     
-    tableBody.innerHTML = orderRequests.map(request => `
+    tableBody.innerHTML = pendingRequests.map(request => `
         <tr>
             <td>
                 <strong>${request.material_name}</strong><br>
@@ -407,15 +445,13 @@ function displayOrderRequests() {
             </td>
             <td>${formatDateTime(request.created_at)}</td>
             <td>
-                <div class="action-buttons">
-                    ${request.status === 'pending' ? `
-                        <button class="btn btn-sm btn-success" onclick="approveRequest('${request.id}')" title="Approve">
-                            <i class="fas fa-check"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger" onclick="rejectRequest('${request.id}')" title="Reject">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    ` : ''}
+                <div class="action-buttons" style="display: flex; gap: 5px; justify-content: center;">
+                    <button class="btn btn-sm btn-success" onclick="approveRequest('${request.id}')" title="Approve">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="rejectRequest('${request.id}')" title="Reject">
+                        <i class="fas fa-times"></i>
+                    </button>
                     <button class="btn btn-sm btn-info" onclick="viewRequestDetails('${request.id}')" title="View Details">
                         <i class="fas fa-eye"></i>
                     </button>
@@ -444,7 +480,7 @@ function displayOrders() {
     const tableBody = document.getElementById('orders-table-body');
     
     if (orders.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">No orders found</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem;">No orders found</td></tr>';
         return;
     }
     
@@ -461,8 +497,234 @@ function displayOrders() {
             <td>${formatIndianCurrency(order.total_amount)}</td>
             <td><span class="status-badge status-${order.status}">${order.status.toUpperCase()}</span></td>
             <td>${formatDateTime(order.created_at)}</td>
+            <td>
+                <div class="action-buttons" style="display: flex; justify-content: center;">
+                    <button class="btn btn-sm btn-info" onclick="viewOrderDetails('${order.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </td>
         </tr>
     `).join('');
+}
+
+// Detailed view for completed orders (with photos and all details)
+function viewOrderDetails(orderId) {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) {
+        if (typeof showNotification === 'function') {
+            showNotification('Order not found', 'error');
+        } else {
+            alert('Order not found');
+        }
+        return;
+    }
+    
+    const modal = document.getElementById('request-details-modal');
+    const content = document.getElementById('request-details-content');
+    
+    if (!modal || !content) {
+        alert('Modal not found');
+        return;
+    }
+    
+    // Parse photo - could be single string or JSON array
+    let photos = [];
+    if (order.photo) {
+        try {
+            photos = JSON.parse(order.photo);
+            if (!Array.isArray(photos)) photos = [order.photo];
+        } catch {
+            photos = [order.photo];
+        }
+    }
+    const firstPhoto = photos.length > 0 ? photos[0] : null;
+    
+    // Update modal title
+    const modalTitle = modal.querySelector('.modal-header h3');
+    if (modalTitle) {
+        modalTitle.innerHTML = '<i class="fas fa-eye"></i> Order Details';
+    }
+    
+    content.innerHTML = `
+        <div style="display: grid; grid-template-columns: 300px 1fr; gap: 24px;">
+            ${firstPhoto ? `
+            <div style="width: 100%; height: 300px; border-radius: 12px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <img src="${firstPhoto}" alt="${order.material_name}" style="width: 100%; height: 100%; object-fit: contain; padding: 12px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                    <i class="fas fa-image" style="font-size:3rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                    <span style="font-size: 1rem; font-weight: 500;">No Image</span>
+                </div>
+            </div>
+            ` : `
+            <div style="width: 100%; height: 300px; border-radius: 12px; background: #f3f4f6; border: 1px solid #e5e7eb; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <i class="fas fa-image" style="font-size:3rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                <span style="font-size: 1rem; font-weight: 500;">No Image</span>
+            </div>
+            `}
+            
+            <div>
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 8px 0; color: #1f2937; font-size: 22px; font-weight: 700;">${order.material_name}</h3>
+                    ${order.brand ? `<p style="margin: 0 0 12px 0; color: #6b7280; font-size: 16px; font-weight: 600;">${order.brand}</p>` : ''}
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
+                        ${order.category ? `<span style="padding: 6px 12px; background: #dbeafe; color: #1e40af; border-radius: 16px; font-size: 13px; font-weight: 600;">${order.category}</span>` : ''}
+                        ${order.condition ? `<span style="padding: 6px 12px; background: #fef3c7; color: #92400e; border-radius: 16px; font-size: 13px; font-weight: 600;">${order.condition.charAt(0).toUpperCase() + order.condition.slice(1)}</span>` : ''}
+                        <span style="padding: 6px 12px; background: #dcfce7; color: #059669; border-radius: 16px; font-size: 13px; font-weight: 600;">
+                            <i class="fas fa-rupee-sign"></i> ${order.current_price || 0}/unit
+                        </span>
+                        ${order.mrp ? `<span style="padding: 6px 12px; background: #fef2f2; color: #dc2626; border-radius: 16px; font-size: 13px; font-weight: 600;">MRP: ₹${order.mrp}</span>` : ''}
+                    </div>
+                </div>
+                
+                <div style="background: #f9fafb; border-radius: 12px; padding: 16px; margin-bottom: 16px; border: 1px solid #e5e7eb;">
+                    <h4 style="margin: 0 0 12px 0; color: #374151; font-size: 16px; font-weight: 600;">
+                        <i class="fas fa-info-circle"></i> Material Details
+                    </h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        ${order.listing_id ? `
+                        <div>
+                            <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Listing ID</div>
+                            <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${order.listing_id}</div>
+                        </div>
+                        ` : ''}
+                        <div>
+                            <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Ordered Quantity</div>
+                            <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${order.quantity} ${order.unit || 'units'}</div>
+                        </div>
+                        ${order.dimensions ? `
+                        <div>
+                            <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Dimensions</div>
+                            <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${order.dimensions}</div>
+                        </div>
+                        ` : ''}
+                        ${order.weight ? `
+                        <div>
+                            <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Weight</div>
+                            <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${order.weight} kg</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    ${order.specs ? `
+                    <div style="margin-top: 12px;">
+                        <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Specifications</div>
+                        <div style="color: #1f2937; font-size: 14px; font-weight: 500; line-height: 1.6; white-space: pre-wrap;">${order.specs}</div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 24px;">
+            <div style="background: #eff6ff; border-radius: 12px; padding: 16px; border: 1px solid #bfdbfe;">
+                <h4 style="margin: 0 0 12px 0; color: #1e40af; font-size: 16px; font-weight: 600;">
+                    <i class="fas fa-user"></i> Buyer Information
+                </h4>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div>
+                        <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Name</div>
+                        <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${order.buyer_name}</div>
+                    </div>
+                    ${order.buyer_company ? `
+                    <div>
+                        <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Company</div>
+                        <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${order.buyer_company}</div>
+                    </div>
+                    ` : ''}
+                    ${order.buyer_email ? `
+                    <div>
+                        <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Email</div>
+                        <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${order.buyer_email}</div>
+                    </div>
+                    ` : ''}
+                    ${order.buyer_phone ? `
+                    <div>
+                        <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Phone</div>
+                        <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${order.buyer_phone}</div>
+                    </div>
+                    ` : ''}
+                    ${order.shipping_address ? `
+                    <div>
+                        <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Shipping Address</div>
+                        <div style="color: #1f2937; font-size: 14px; font-weight: 500; line-height: 1.5;">${order.shipping_address}</div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <div style="background: #f0fdf4; border-radius: 12px; padding: 16px; border: 1px solid #86efac;">
+                <h4 style="margin: 0 0 12px 0; color: #065f46; font-size: 16px; font-weight: 600;">
+                    <i class="fas fa-store"></i> Seller Information
+                </h4>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div>
+                        <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Name</div>
+                        <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${order.seller_name}</div>
+                    </div>
+                    ${order.seller_company ? `
+                    <div>
+                        <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Company</div>
+                        <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${order.seller_company}</div>
+                    </div>
+                    ` : ''}
+                    ${order.seller_email ? `
+                    <div>
+                        <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Email</div>
+                        <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${order.seller_email}</div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+        
+        <div style="background: #fff7ed; border-radius: 12px; padding: 16px; margin-top: 20px; border: 1px solid #fed7aa;">
+            <h4 style="margin: 0 0 12px 0; color: #9a3412; font-size: 16px; font-weight: 600;">
+                <i class="fas fa-shopping-cart"></i> Order Details
+            </h4>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                <div>
+                    <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Order Quantity</div>
+                    <div style="color: #1f2937; font-size: 18px; font-weight: 700;">${order.quantity} ${order.unit || 'units'}</div>
+                </div>
+                <div>
+                    <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Unit Price</div>
+                    <div style="color: #1f2937; font-size: 18px; font-weight: 700;">${formatIndianCurrency(order.unit_price || order.current_price || 0)}</div>
+                </div>
+                <div>
+                    <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Total Amount</div>
+                    <div style="color: #059669; font-size: 18px; font-weight: 700;">${formatIndianCurrency(order.total_amount)}</div>
+                </div>
+            </div>
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Status</div>
+                        <span class="status-badge status-${order.status}" style="font-size: 14px;">
+                            ${order.status.toUpperCase()}
+                        </span>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Order Date</div>
+                        <div style="color: #1f2937; font-size: 14px; font-weight: 500;">${formatDateTime(order.created_at)}</div>
+                    </div>
+                </div>
+                ${order.notes ? `
+                <div style="margin-top: 12px;">
+                    <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Notes</div>
+                    <div style="color: #1f2937; font-size: 14px; font-weight: 500; line-height: 1.6;">${order.notes}</div>
+                </div>
+                ` : ''}
+                ${order.delivery_notes ? `
+                <div style="margin-top: 12px;">
+                    <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Delivery Notes</div>
+                    <div style="color: #1f2937; font-size: 14px; font-weight: 500; line-height: 1.6;">${order.delivery_notes}</div>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+    
+    modal.classList.add('show');
 }
 
 // Material Management
@@ -1099,23 +1361,76 @@ async function rejectRequest(requestId) {
     }
 }
 
+// Simplified view for order requests (just basic info)
 function viewRequestDetails(requestId) {
     const request = orderRequests.find(r => r.id === requestId);
-    if (!request) return;
+    if (!request) {
+        if (typeof showNotification === 'function') {
+            showNotification('Request not found', 'error');
+        } else {
+            alert('Request not found');
+        }
+        return;
+    }
     
-    alert(`Order Request Details:\n\n` +
-          `Material: ${request.material_name}\n` +
-          `Listing ID: ${request.listing_id || 'N/A'}\n` +
-          `Buyer: ${request.buyer_name} (${request.buyer_email})\n` +
-          `Seller: ${request.seller_name} (${request.seller_email})\n` +
-          `Quantity: ${request.quantity}\n` +
-          `Total Amount: ${formatIndianCurrency(request.total_amount)}\n` +
-          `Status: ${request.status}\n` +
-          `Notes: ${request.notes || 'None'}\n` +
-          `Created: ${new Date(request.created_at).toLocaleString()}`);
+    const modal = document.getElementById('request-details-modal');
+    const content = document.getElementById('request-details-content');
+    
+    if (!modal || !content) {
+        alert('Modal not found');
+        return;
+    }
+    
+    content.innerHTML = `
+        <div style="padding: 20px;">
+            <h3 style="margin-bottom: 16px; color: #1f2937;">Order Request #${request.id.substring(0, 8)}</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <h4 style="margin-bottom: 12px; color: #374151;">Material Information</h4>
+                    <p><strong>Material:</strong> ${request.material_name}</p>
+                    ${request.listing_id ? `<p><strong>Listing ID:</strong> ${request.listing_id}</p>` : ''}
+                    <p><strong>Quantity:</strong> ${request.quantity} ${request.unit || 'units'}</p>
+                    <p><strong>Total Amount:</strong> ${formatIndianCurrency(request.total_amount)}</p>
+                </div>
+                <div>
+                    <h4 style="margin-bottom: 12px; color: #374151;">Buyer Information</h4>
+                    <p><strong>Name:</strong> ${request.buyer_name}</p>
+                    ${request.buyer_company ? `<p><strong>Company:</strong> ${request.buyer_company}</p>` : ''}
+                    ${request.buyer_email ? `<p><strong>Email:</strong> ${request.buyer_email}</p>` : ''}
+                    ${request.buyer_phone ? `<p><strong>Phone:</strong> ${request.buyer_phone}</p>` : ''}
+                    ${request.delivery_address ? `<p><strong>Delivery Address:</strong> ${request.delivery_address}</p>` : ''}
+                </div>
+            </div>
+            <div style="margin-top: 20px;">
+                <p><strong>Status:</strong> <span class="status-badge status-${request.status}">${request.status.toUpperCase()}</span></p>
+                <p><strong>Requested On:</strong> ${formatDateTime(request.created_at)}</p>
+                ${request.notes ? `<p><strong>Notes:</strong> ${request.notes}</p>` : ''}
+            </div>
+        </div>
+    `;
+    
+    modal.classList.add('show');
 }
+
+
+function closeRequestDetailsModal() {
+    const modal = document.getElementById('request-details-modal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('request-details-modal');
+    if (modal && e.target === modal) {
+        closeRequestDetailsModal();
+    }
+});
 
 window.updateOrderStatus = updateOrderStatus;
 window.approveRequest = approveRequest;
 window.rejectRequest = rejectRequest;
 window.viewRequestDetails = viewRequestDetails;
+window.viewOrderDetails = viewOrderDetails;
+window.closeRequestDetailsModal = closeRequestDetailsModal;

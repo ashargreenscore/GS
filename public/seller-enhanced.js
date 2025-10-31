@@ -93,6 +93,9 @@ function initializeDashboard() {
         console.log('✅ Set seller name:', currentUser.name);
     }
     
+    // Initialize user profile dropdown
+    initializeUserProfile();
+    
     // Fix tab button onclick handlers to ensure correct tab switching
     setTimeout(() => {
         const tabButtons = document.querySelectorAll('.tab-btn');
@@ -146,6 +149,249 @@ function signOut() {
     localStorage.removeItem('greenscore-user');
     window.location.href = '/';
 }
+
+// User Profile Dropdown Functions
+async function initializeUserProfile() {
+    // Set name in button
+    const profileUserName = document.getElementById('profile-user-name');
+    if (profileUserName && currentUser) {
+        profileUserName.textContent = currentUser.name || 'User';
+    }
+    
+    // Load full user details
+    await loadUserProfileDetails();
+}
+
+async function loadUserProfileDetails() {
+    if (!currentUser || !currentUser.id) return;
+    
+    try {
+        // Try to fetch full user details from API
+        const response = await fetch(`/api/users/${currentUser.id}`);
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.user) {
+                updateProfileDetails(result.user);
+                return;
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching user details:', error);
+    }
+    
+    // Fallback to currentUser data if API fails
+    updateProfileDetails(currentUser);
+}
+
+function updateProfileDetails(user) {
+    // Update profile detail fields
+    const detailName = document.getElementById('profile-detail-name');
+    const detailEmail = document.getElementById('profile-detail-email');
+    const detailCompany = document.getElementById('profile-detail-company');
+    const detailPhone = document.getElementById('profile-detail-phone');
+    const detailProject = document.getElementById('profile-detail-project');
+    const detailDesignation = document.getElementById('profile-detail-designation');
+    
+    if (detailName) detailName.textContent = user.name || '-';
+    if (detailEmail) detailEmail.textContent = user.email || '-';
+    if (detailCompany) detailCompany.textContent = user.company_name || user.companyName || 'Not specified';
+    if (detailPhone) detailPhone.textContent = user.phone || 'Not provided';
+    
+    // Project Name - above designation
+    if (detailProject) {
+        detailProject.textContent = user.project_name || 'Not specified';
+    }
+    
+    // Designation
+    if (detailDesignation) {
+        if (user.designation) {
+            detailDesignation.textContent = user.designation;
+        } else {
+            detailDesignation.textContent = 'Not specified';
+        }
+    }
+}
+
+function toggleUserProfile() {
+    const menu = document.getElementById('user-profile-menu');
+    if (!menu) return;
+    
+    const isVisible = menu.style.display !== 'none';
+    menu.style.display = isVisible ? 'none' : 'block';
+    
+    // Close menu when clicking outside
+    if (!isVisible) {
+        setTimeout(() => {
+            document.addEventListener('click', closeUserProfileOnOutsideClick, true);
+        }, 0);
+    }
+}
+
+function closeUserProfileOnOutsideClick(event) {
+    const menu = document.getElementById('user-profile-menu');
+    const btn = document.querySelector('.user-profile-btn');
+    
+    if (menu && btn && !menu.contains(event.target) && !btn.contains(event.target)) {
+        menu.style.display = 'none';
+        document.removeEventListener('click', closeUserProfileOnOutsideClick, true);
+    }
+}
+
+// Account Page Functions
+function openAccountPage() {
+    // Close profile dropdown first
+    const menu = document.getElementById('user-profile-menu');
+    if (menu) menu.style.display = 'none';
+    
+    // Load current user data into form
+    loadAccountData();
+    
+    // Open account modal
+    const modal = document.getElementById('account-modal');
+    if (modal) {
+        modal.classList.add('show');
+    }
+}
+
+function closeAccountModal() {
+    const modal = document.getElementById('account-modal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+    document.getElementById('account-form').reset();
+}
+
+async function loadAccountData() {
+    if (!currentUser || !currentUser.id) return;
+    
+    try {
+        // Fetch full user details
+        const response = await fetch(`/api/users/${currentUser.id}`);
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.user) {
+                populateAccountForm(result.user);
+                return;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading account data:', error);
+    }
+    
+    // Fallback to currentUser data
+    populateAccountForm(currentUser);
+}
+
+function populateAccountForm(user) {
+    document.getElementById('account-name').value = user.name || '';
+    document.getElementById('account-email').value = user.email || '';
+    document.getElementById('account-email').disabled = true; // Email cannot be changed
+    document.getElementById('account-company').value = user.company_name || user.companyName || '';
+    document.getElementById('account-phone').value = user.phone || '';
+    document.getElementById('account-address').value = user.address || '';
+    
+    // Set project name if available
+    const projectInput = document.getElementById('account-project');
+    if (projectInput) {
+        // Use project_name if available, otherwise empty
+        projectInput.value = user.project_name || '';
+    }
+    
+    // Set designation if available
+    const designationSelect = document.getElementById('account-designation');
+    if (designationSelect) {
+        designationSelect.value = user.designation || '';
+    }
+}
+
+// Handle account form submission and setup profile account form
+document.addEventListener('DOMContentLoaded', function() {
+    // Setup profile account form
+    setupProfileAccountForm();
+    
+    const accountForm = document.getElementById('account-form');
+    if (accountForm) {
+        accountForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!currentUser || !currentUser.id) {
+                showNotification('User not found. Please sign in again.', 'error');
+                return;
+            }
+            
+            const updateData = {
+                name: document.getElementById('account-name').value.trim(),
+                company_name: document.getElementById('account-company').value.trim(),
+                phone: document.getElementById('account-phone').value.trim(),
+                designation: document.getElementById('account-designation').value,
+                project_name: document.getElementById('account-project').value.trim() || null,
+                address: document.getElementById('account-address').value.trim() || null
+            };
+            
+            // Validate required fields
+            if (!updateData.name) {
+                showNotification('Name is required', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/users/${currentUser.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updateData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Account updated successfully!', 'success');
+                    
+                    // Update currentUser in localStorage
+                    currentUser.name = updateData.name;
+                    currentUser.companyName = updateData.company_name;
+                    currentUser.company_name = updateData.company_name;
+                    currentUser.phone = updateData.phone;
+                    currentUser.designation = updateData.designation;
+                    currentUser.project_name = updateData.project_name;
+                    currentUser.address = updateData.address;
+                    localStorage.setItem('greenscore-user', JSON.stringify(currentUser));
+                    
+                    // Update profile display
+                    updateProfileDetails({
+                        ...currentUser,
+                        company_name: updateData.company_name,
+                        phone: updateData.phone,
+                        designation: updateData.designation
+                    });
+                    
+                    // Update seller name if displayed
+                    const sellerNameElement = document.getElementById('seller-name');
+                    if (sellerNameElement) {
+                        sellerNameElement.textContent = updateData.name;
+                    }
+                    
+                    // Update profile button name
+                    const profileUserName = document.getElementById('profile-user-name');
+                    if (profileUserName) {
+                        profileUserName.textContent = updateData.name;
+                    }
+                    
+                    // Close modal after a short delay
+                    setTimeout(() => {
+                        closeAccountModal();
+                    }, 1000);
+                } else {
+                    showNotification(result.error || 'Failed to update account', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating account:', error);
+                showNotification('Error updating account. Please try again.', 'error');
+            }
+        });
+    }
+});
 
 // Load categories from API
 async function loadCategories() {
@@ -208,9 +454,10 @@ function populateProjectSelectors() {
 function populateCategoryFilters() {
     const categoryFilter = document.getElementById('category-filter');
     const itemCategory = document.getElementById('item-category');
+    const editCategory = document.getElementById('edit-category');
     
     categories.forEach(category => {
-        [categoryFilter, itemCategory].forEach(select => {
+        [categoryFilter, itemCategory, editCategory].forEach(select => {
             if (select) {
                 const option = document.createElement('option');
                 option.value = category;
@@ -316,7 +563,7 @@ function displayGridView(filteredMaterials) {
         }
         
         return `
-        <div class="inventory-item">
+        <div class="inventory-item" onclick="viewMaterialDetail('${material.id}')" style="cursor: pointer;">
             ${photos.length > 0 ? `
                 <div class="item-photo-slideshow" data-material-id="${material.id}">
                     ${photos.length > 1 ? `
@@ -346,29 +593,27 @@ function displayGridView(filteredMaterials) {
                     ` : ''}
                 </div>
             ` : ''}
-            <div class="item-actions">
+            <div class="item-actions" onclick="event.stopPropagation()">
                 <div class="dropdown">
-                    <button class="dropdown-btn" onclick="toggleDropdown('${material.id}')">
+                    <button class="dropdown-btn" onclick="event.stopPropagation(); toggleDropdown('${material.id}')">
                         <i class="fas fa-ellipsis-v"></i>
                     </button>
                     <div class="dropdown-content" id="dropdown-${material.id}">
+                        <div class="dropdown-item edit" onclick="event.stopPropagation(); editMaterial('${material.id}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </div>
                         ${material.acquisitionType === 'acquired' ? 
-                            `<div class="dropdown-item resale" onclick="markAcquiredForSale('${material.id}')">
+                            `<div class="dropdown-item resale" onclick="event.stopPropagation(); markAcquiredForSale('${material.id}')">
                                 <i class="fas fa-store"></i> Mark for Sale
                             </div>` : 
-                            `<div class="dropdown-item resale" onclick="updateListingType('${material.id}', 'resale')">
+                            `<div class="dropdown-item resale" onclick="event.stopPropagation(); updateListingType('${material.id}', 'resale')">
                             <i class="fas fa-store"></i> For Resale
                             </div>`
                         }
-                        ${material.acquisitionType !== 'acquired' ? 
-                            `<div class="dropdown-item internal_transfer" onclick="showListingActionModal('${material.id}', 'internal_transfer')">
-                            <i class="fas fa-exchange-alt"></i> Internal Transfer
-                            </div>` : ''
-                        }
-                        <div class="dropdown-item sold" onclick="updateListingType('${material.id}', 'sold')">
+                        <div class="dropdown-item sold" onclick="event.stopPropagation(); updateListingType('${material.id}', 'sold')">
                             <i class="fas fa-check-circle"></i> Mark as Sold
                         </div>
-                        <div class="dropdown-item delete" onclick="deleteMaterial('${material.id}')" style="color: #ef4444;">
+                        <div class="dropdown-item delete" onclick="event.stopPropagation(); deleteMaterial('${material.id}')" style="color: #ef4444;">
                             <i class="fas fa-trash"></i> Delete
                         </div>
                     </div>
@@ -424,7 +669,7 @@ function displayTableView(filteredMaterials) {
     }
     
     tableBody.innerHTML = filteredMaterials.map(material => `
-        <tr>
+        <tr onclick="viewMaterialDetail('${material.id}')" style="cursor: pointer;">
             <td>
                 <strong>${material.material}</strong>
                 <br><small>${material.specs || 'No specifications'}</small>
@@ -435,12 +680,12 @@ function displayTableView(filteredMaterials) {
             <td>₹${material.priceToday || 0}</td>
             <td>${getProjectName(material.projectId)}</td>
             <td><span class="status-badge status-${material.listingType || 'resale'}">${getStatusText(material.listingType)}</span></td>
-            <td>
+            <td onclick="event.stopPropagation();">
                 <div class="action-buttons">
-                    <button class="action-btn primary" onclick="showListingActionModal('${material.id}')">
+                    <button class="action-btn primary" onclick="event.stopPropagation(); editMaterial('${material.id}')" title="Edit Material">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="action-btn danger" onclick="deleteMaterial('${material.id}')" title="Delete Material">
+                    <button class="action-btn danger" onclick="event.stopPropagation(); deleteMaterial('${material.id}')" title="Delete Material">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -462,7 +707,6 @@ function getStatusText(listingType, acquisitionType = null) {
     
     switch (listingType) {
         case 'resale': return 'For Sale';
-        case 'internal_transfer': return 'Transfer';
         case 'acquired': return 'Acquired';
         case 'sold': return 'Sold';
         default: return 'For Sale';
@@ -566,33 +810,533 @@ async function deleteMaterial(materialId) {
 }
 
 // Show listing action modal
+// Edit material function
+async function editMaterial(materialId) {
+    const material = materials.find(m => m.id === materialId);
+    if (!material) {
+        showNotification('Material not found', 'error');
+        return;
+    }
+    
+    try {
+        // Try to lock the material for editing
+        const lockResponse = await fetch(`/api/materials/${materialId}/lock`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId: currentUser.id })
+        });
+        
+        const lockResult = await lockResponse.json();
+        
+        if (!lockResult.success && !lockResult.locked) {
+            // Material is locked by another user
+            document.getElementById('edit-material-modal').classList.add('show');
+            document.getElementById('edit-material-form').style.display = 'none';
+            document.getElementById('edit-lock-warning').style.display = 'block';
+            return;
+        }
+        
+        // Successfully locked, show edit form
+        // Populate the edit form
+        document.getElementById('edit-material-id').value = material.id;
+        document.getElementById('edit-material-name').value = material.material;
+        document.getElementById('edit-brand').value = material.brand || '';
+        
+        // Get categories and populate
+        const categoriesResponse = await fetch('/api/categories');
+        const categoriesData = await categoriesResponse.json();
+        const editCategorySelect = document.getElementById('edit-category');
+        if (editCategorySelect) {
+            editCategorySelect.innerHTML = '<option value="">Select Category</option>';
+            categoriesData.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                if (category === material.category) {
+                    option.selected = true;
+                }
+                editCategorySelect.appendChild(option);
+            });
+        }
+        
+        document.getElementById('edit-qty').value = material.qty;
+        document.getElementById('edit-unit').value = material.unit || 'pcs';
+        document.getElementById('edit-condition').value = material.condition || 'good';
+        document.getElementById('edit-mrp').value = material.mrp || 0;
+        document.getElementById('edit-price-today').value = material.priceToday || material.price_today || 0;
+        document.getElementById('edit-specs').value = material.specs || '';
+        
+        // Handle photos - could be single string, JSON array, or base64
+        editUploadedPhotos = []; // Clear previous uploads
+        let existingPhotos = [];
+        if (material.photo) {
+            try {
+                existingPhotos = JSON.parse(material.photo);
+                if (!Array.isArray(existingPhotos)) {
+                    existingPhotos = [material.photo];
+                }
+            } catch {
+                existingPhotos = [material.photo];
+            }
+        }
+        editUploadedPhotos = [...existingPhotos]; // Copy existing photos
+        updateEditPhotoPreview(); // Display existing photos
+        
+        // Set photo URL field if no photos exist
+        const photoUrlInput = document.getElementById('edit-photo-url');
+        if (photoUrlInput) {
+            photoUrlInput.value = existingPhotos.length > 0 && !existingPhotos[0].startsWith('data:') ? existingPhotos[0] : '';
+        }
+        
+        // Show the modal
+        document.getElementById('edit-material-modal').classList.add('show');
+        document.getElementById('edit-material-form').style.display = 'block';
+        const lockWarning = document.getElementById('edit-lock-warning');
+        if (lockWarning) lockWarning.style.display = 'none';
+        
+    } catch (error) {
+        console.error('Error locking material for edit:', error);
+        showNotification('Error starting edit session', 'error');
+    }
+}
+
+async function closeEditModal() {
+    const materialId = document.getElementById('edit-material-id').value;
+    if (materialId) {
+        // Unlock the material
+        try {
+            await fetch(`/api/materials/${materialId}/unlock`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ userId: currentUser.id })
+            });
+        } catch (error) {
+            console.error('Error unlocking material:', error);
+        }
+    }
+    
+    // Clear uploaded photos
+    editUploadedPhotos = [];
+    updateEditPhotoPreview();
+    
+    document.getElementById('edit-material-modal').classList.remove('show');
+    document.getElementById('edit-material-form').reset();
+}
+
+function cancelEdit() {
+    closeEditModal();
+}
+
+// Handle edit form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const editForm = document.getElementById('edit-material-form');
+    if (editForm) {
+        editForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const materialId = document.getElementById('edit-material-id').value;
+            
+            // Determine photo value: use uploaded photos if any, otherwise use URL
+            let photoValue = '';
+            const photoUrlInput = document.getElementById('edit-photo-url');
+            if (editUploadedPhotos.length > 0) {
+                // Use uploaded photos (base64 or URLs)
+                photoValue = editUploadedPhotos.length === 1 ? editUploadedPhotos[0] : JSON.stringify(editUploadedPhotos);
+            } else if (photoUrlInput && photoUrlInput.value.trim()) {
+                // Use URL if provided
+                photoValue = photoUrlInput.value.trim();
+            }
+            
+            const updateData = {
+                userId: currentUser.id,
+                material: document.getElementById('edit-material-name').value,
+                brand: document.getElementById('edit-brand').value,
+                category: document.getElementById('edit-category').value,
+                qty: parseInt(document.getElementById('edit-qty').value),
+                unit: document.getElementById('edit-unit').value,
+                condition: document.getElementById('edit-condition').value,
+                mrp: parseFloat(document.getElementById('edit-mrp').value) || 0,
+                priceToday: parseFloat(document.getElementById('edit-price-today').value),
+                specs: document.getElementById('edit-specs').value,
+                photo: photoValue
+            };
+            
+            try {
+                const response = await fetch(`/api/materials/${materialId}/edit`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updateData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Material updated successfully', 'success');
+                    
+                    // Close modal first
+                    await closeEditModal();
+                    
+                    // Reload inventory to show updates in seller dashboard
+                    await loadInventory();
+                    updateStats();
+                    
+                    // Force a page refresh after a short delay to ensure all panels see the update
+                    // This ensures buyer marketplace and admin panel also see changes
+                    setTimeout(() => {
+                        // Only reload if we're not in a modal or important state
+                        if (!document.getElementById('edit-material-modal')?.classList.contains('show')) {
+                            // Trigger a custom event that other parts of the app can listen to
+                            window.dispatchEvent(new CustomEvent('materialUpdated', { detail: { materialId } }));
+                        }
+                    }, 500);
+                } else {
+                    showNotification(result.error || 'Error updating material', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating material:', error);
+                console.error('Error details:', error.message, error.stack);
+                
+                // Show more detailed error message
+                let errorMessage = 'Error updating material';
+                if (error.message) {
+                    errorMessage += ': ' + error.message;
+                }
+                showNotification(errorMessage, 'error');
+            }
+        });
+    }
+});
+
+// Edit photo upload functions
+let editUploadedPhotos = [];
+
+// Trigger photo upload for edit modal
+function triggerEditPhotoUpload() {
+    document.getElementById('edit-photo-input').click();
+}
+
+// Handle photo file uploads for edit modal
+async function handleEditPhotoFiles(input) {
+    const files = Array.from(input.files);
+    const previewGrid = document.getElementById('edit-photo-preview-grid');
+    
+    for (const file of files) {
+        if (file.type.startsWith('image/')) {
+            // Upload to server first
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+                
+                const uploadResponse = await fetch('/api/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const uploadResult = await uploadResponse.json();
+                
+                if (uploadResult.success) {
+                    // Add the server URL to the photos array
+                    editUploadedPhotos.push(uploadResult.imageUrl);
+                    updateEditPhotoPreview();
+                } else {
+                    showNotification('Failed to upload image: ' + uploadResult.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error uploading image:', error);
+                showNotification('Error uploading image', 'error');
+            }
+        }
+    }
+    
+    // Clear the input for next selection
+    input.value = '';
+}
+
+// Remove uploaded photo from edit modal
+function removeEditPhoto(index) {
+    editUploadedPhotos.splice(index, 1);
+    updateEditPhotoPreview();
+}
+
+// Update photo preview grid for edit modal
+function updateEditPhotoPreview() {
+    const previewGrid = document.getElementById('edit-photo-preview-grid');
+    if (!previewGrid) return;
+    
+    previewGrid.innerHTML = '';
+    
+    editUploadedPhotos.forEach((photo, index) => {
+        const preview = document.createElement('div');
+        preview.className = 'photo-preview-item';
+        preview.innerHTML = `
+            <img src="${photo}" alt="Preview" onerror="this.src='https://via.placeholder.com/150/f3f4f6/9ca3af?text=Image+Error'">
+            <button type="button" class="remove-photo" onclick="removeEditPhoto(${index})">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        previewGrid.appendChild(preview);
+    });
+}
+
+// View material detail modal (similar to buyer marketplace)
+function viewMaterialDetail(materialId) {
+    const material = materials.find(m => m.id === materialId);
+    if (!material) {
+        showNotification('Material not found', 'error');
+        return;
+    }
+    
+    const modal = document.getElementById('material-detail-modal');
+    const modalTitle = document.getElementById('detail-modal-title');
+    const modalContent = document.getElementById('material-detail-content');
+    
+    modalTitle.textContent = material.material;
+    
+    // Parse photos - could be single string or JSON array
+    let photos = [];
+    if (material.photo) {
+        try {
+            photos = JSON.parse(material.photo);
+            if (!Array.isArray(photos)) photos = [material.photo];
+        } catch {
+            photos = [material.photo];
+        }
+    }
+    
+    modalContent.innerHTML = `
+        <!-- Full width image slideshow on top -->
+        <div class="product-image" style="width: 100%; height: 400px; border-radius: 10px; overflow: hidden; margin-bottom: 1.25rem; background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%); border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.08); position: relative;">
+            ${photos.length > 0 ? `
+                ${photos.length > 1 ? `
+                    <button onclick="changeDetailSlide('detail-${materialId}', -1)" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.6); color: white; border: none; padding: 0.75rem; cursor: pointer; z-index: 2; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: background 0.3s;" onmouseover="this.style.background='rgba(0,0,0,0.8)'" onmouseout="this.style.background='rgba(0,0,0,0.6)'">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button onclick="changeDetailSlide('detail-${materialId}', 1)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.6); color: white; border: none; padding: 0.75rem; cursor: pointer; z-index: 2; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: background 0.3s;" onmouseover="this.style.background='rgba(0,0,0,0.8)'" onmouseout="this.style.background='rgba(0,0,0,0.6)'">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                ` : ''}
+                <div id="detail-slideshow-${materialId}" style="width: 100%; height: 100%; position: relative;">
+                    ${photos.map((photo, index) => `
+                        <img src="${photo}" 
+                             alt="${material.material} - Photo ${index + 1}" 
+                             class="detail-slideshow-image ${index === 0 ? 'active' : ''}"
+                             data-photo-index="${index}"
+                             style="width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 0.75rem; position: absolute; top: 0; left: 0; opacity: ${index === 0 ? '1' : '0'}; transition: opacity 0.3s ease;"
+                             onerror="this.style.display='none'">
+                    `).join('')}
+                    ${photos.length > 1 ? `
+                        <div style="position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 2;">
+                            ${photos.map((_, index) => `
+                                <span class="detail-slide-indicator ${index === 0 ? 'active' : ''}" 
+                                      onclick="goToDetailSlide('detail-${materialId}', ${index})"
+                                      data-indicator-index="${index}"
+                                      style="width: 10px; height: 10px; border-radius: 50%; background: ${index === 0 ? 'white' : 'rgba(255,255,255,0.5)'}; cursor: pointer; transition: background 0.3s;"></span>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+                ${photos.every(p => !p || p.startsWith('data:')) ? '' : `
+                    <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                        <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                        <span style="font-size: 0.875rem; font-weight: 500;">No Image</span>
+                    </div>
+                `}
+            ` : `
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                    <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                    <span style="font-size: 0.875rem; font-weight: 500;">No Image</span>
+                </div>
+            `}
+        </div>
+        
+        <style>
+            .detail-slideshow-image {
+                transition: opacity 0.3s ease;
+            }
+            .detail-slideshow-image.active {
+                opacity: 1 !important;
+            }
+            .detail-slide-indicator.active {
+                background: white !important;
+            }
+        </style>
+
+        <!-- Material info sections -->
+        <div style="display: grid; grid-template-columns: 1.75fr 1fr; gap: 1.25rem;">
+            <!-- Left column: Details -->
+            <div>
+                <div style="margin-bottom: 0.75rem;">
+                    <span class="product-category" style="display: inline-block; padding: 0.375rem 0.75rem; background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); color: #1e40af; border-radius: 1rem; font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                        ${material.category || 'Other'}
+                    </span>
+                    <span class="status-badge status-${material.listingType || 'resale'}" style="margin-left: 0.5rem;">
+                        ${getStatusText(material.listingType, material.acquisitionType)}
+                    </span>
+                </div>
+                
+                <h3 style="font-size: 1.375rem; margin-bottom: 0.5rem; color: #111827; font-weight: 700; line-height: 1.3;">${material.material}</h3>
+                ${material.brand ? `
+                <div style="font-size: 1rem; color: #6b7280; margin-bottom: 1rem; font-weight: 600;">
+                    ${material.brand}
+                </div>` : ''}
+                
+                <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 1rem; border-radius: 8px; margin-bottom: 0.875rem; border: 1px solid #e2e8f0;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem;">
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <div style="color: #64748b; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Condition</div>
+                            <div style="font-weight: 700; color: #0f172a; font-size: 0.875rem;">${material.condition ? material.condition.charAt(0).toUpperCase() + material.condition.slice(1) : 'Good'}</div>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <div style="color: #64748b; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Available Qty</div>
+                            <div style="font-weight: 700; color: #0f172a; font-size: 1.125rem;">${material.qty} <span style="font-size: 0.875rem; color: #64748b;">${material.unit || 'pcs'}</span></div>
+                        </div>
+                        ${material.mrp ? `
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <div style="color: #64748b; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">MRP</div>
+                            <div style="font-weight: 700; color: #0f172a; font-size: 0.875rem;">₹${material.mrp}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+
+                ${(material.projectId || material.project_name || material.project_location || material.location_details) ? `
+                <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); padding: 1rem; border-radius: 8px; margin-bottom: 0.875rem; border: 1px solid #a7f3d0;">
+                    <h4 style="margin: 0 0 0.625rem 0; color: #065f46; display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em;">
+                        <i class="fas fa-map-marker-alt" style="font-size: 0.625rem;"></i>
+                        <span>Location & Project</span>
+                    </h4>
+                    ${(material.project_location || material.location_details) ? `
+                    <div style="margin-bottom: ${(material.projectId || material.project_name) ? '0.5rem' : '0'};">
+                        <div style="color: #047857; font-size: 0.625rem; margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Location</div>
+                        <div style="font-weight: 700; color: #064e3b; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8125rem;">
+                            <i class="fas fa-location-arrow" style="color: #10b981; font-size: 0.625rem;"></i>
+                            <span>${material.project_location || material.location_details || 'Not specified'}</span>
+                        </div>
+                    </div>
+                    ` : ''}
+                    ${(material.project_name || (material.projectId && getProjectName(material.projectId) !== 'Default Project')) ? `
+                    <div>
+                        <div style="color: #047857; font-size: 0.625rem; margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Project</div>
+                        <div style="font-weight: 700; color: #064e3b; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8125rem;">
+                            <i class="fas fa-project-diagram" style="color: #10b981; font-size: 0.625rem;"></i>
+                            <span>${material.project_name || getProjectName(material.projectId)}</span>
+                        </div>
+                    </div>
+                    ` : ''}
+                </div>
+                ` : ''}
+
+                ${material.specs && material.specs.trim() ? `
+                <div style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); padding: 1rem; border-radius: 8px; border: 1px solid #fde68a;">
+                    <h4 style="margin: 0 0 0.625rem 0; color: #92400e; display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em;">
+                        <i class="fas fa-list-ul" style="font-size: 0.625rem;"></i>
+                        <span>Specifications</span>
+                    </h4>
+                    <p style="line-height: 1.6; color: #78350f; white-space: pre-wrap; margin: 0; font-size: 0.8125rem; font-weight: 500;">${material.specs}</p>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- Right column: Price and actions -->
+            <div>
+                <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 1rem; border-radius: 10px; margin-bottom: 1rem; color: white; text-align: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); position: relative; overflow: hidden;">
+                    <div style="position: absolute; top: 0; right: 0; width: 50px; height: 50px; background: rgba(255,255,255,0.1); border-radius: 50%; transform: translate(30%, -30%);"></div>
+                    <div style="position: absolute; bottom: 0; left: 0; width: 40px; height: 40px; background: rgba(255,255,255,0.08); border-radius: 50%; transform: translate(-40%, 40%);"></div>
+                    <div style="position: relative; z-index: 1;">
+                        <div style="font-size: 0.625rem; margin-bottom: 0.375rem; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Selling Price per ${material.unit || 'piece'}</div>
+                        <div style="font-size: 1.5rem; font-weight: 900; margin-bottom: 0.25rem; text-shadow: 0 2px 4px rgba(0,0,0,0.15); line-height: 1;">₹${material.priceToday || material.price_today || 0}</div>
+                        ${material.mrp && material.mrp > (material.priceToday || material.price_today || 0) ? `
+                        <div style="font-size: 0.6875rem; opacity: 0.95; margin-top: 0.375rem;">
+                            <span style="text-decoration: line-through; opacity: 0.85;">₹${material.mrp}</span>
+                            <span style="margin-left: 0.375rem; background: rgba(255,255,255,0.3); padding: 0.2rem 0.5rem; border-radius: 1rem; font-weight: 700; font-size: 0.625rem;">
+                                ${Math.round((1 - (material.priceToday || material.price_today || 0) / material.mrp) * 100)}% OFF
+                            </span>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <button class="btn btn-primary" onclick="closeMaterialDetailModal(); editMaterial('${material.id}')" style="width: 100%; padding: 0.875rem; font-size: 0.875rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.5rem; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);">
+                        <i class="fas fa-edit"></i>
+                        Edit Material
+                    </button>
+                    
+                    <button class="btn" onclick="closeMaterialDetailModal(); viewRequestsForMaterial('${material.id}')" style="width: 100%; padding: 0.875rem; font-size: 0.875rem; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.5rem; box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);">
+                        <i class="fas fa-shopping-cart"></i>
+                        View Order Requests
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modal.classList.add('show');
+}
+
+// Close material detail modal
+function closeMaterialDetailModal() {
+    document.getElementById('material-detail-modal').classList.remove('show');
+}
+
+// Slideshow navigation for detail modal
+function changeDetailSlide(slideshowId, direction) {
+    const materialId = slideshowId.replace('detail-', '');
+    const slideshow = document.getElementById(`detail-slideshow-${materialId}`);
+    if (!slideshow) return;
+    
+    const images = slideshow.querySelectorAll('.detail-slideshow-image');
+    const indicators = slideshow.querySelectorAll('.detail-slide-indicator');
+    
+    let currentIndex = Array.from(images).findIndex(img => img.classList.contains('active'));
+    if (currentIndex === -1) currentIndex = 0;
+    
+    // Remove active class from current
+    images[currentIndex].classList.remove('active');
+    if (indicators[currentIndex]) indicators[currentIndex].classList.remove('active');
+    
+    // Calculate new index
+    let newIndex = currentIndex + direction;
+    if (newIndex >= images.length) newIndex = 0;
+    if (newIndex < 0) newIndex = images.length - 1;
+    
+    // Add active class to new
+    images[newIndex].classList.add('active');
+    if (indicators[newIndex]) indicators[newIndex].classList.add('active');
+}
+
+function goToDetailSlide(slideshowId, index) {
+    const materialId = slideshowId.replace('detail-', '');
+    const slideshow = document.getElementById(`detail-slideshow-${materialId}`);
+    if (!slideshow) return;
+    
+    const images = slideshow.querySelectorAll('.detail-slideshow-image');
+    const indicators = slideshow.querySelectorAll('.detail-slide-indicator');
+    
+    // Remove all active classes
+    images.forEach(img => img.classList.remove('active'));
+    indicators.forEach(ind => ind.classList.remove('active'));
+    
+    // Add active to specified index
+    if (images[index]) images[index].classList.add('active');
+    if (indicators[index]) indicators[index].classList.add('active');
+}
+
 function showListingActionModal(materialId, listingType = null) {
     const modal = document.getElementById('listing-action-modal');
     const materialIdInput = document.getElementById('action-material-id');
     const listingTypeSelect = document.getElementById('listing-type');
-    const targetProjectGroup = document.getElementById('target-project-group');
-    const transferQuantityGroup = document.getElementById('transfer-quantity-group');
-    const transferNotesGroup = document.getElementById('transfer-notes-group');
-    const availableQuantity = document.getElementById('available-quantity');
-    const transferQuantityInput = document.getElementById('transfer-quantity');
     
     materialIdInput.value = materialId;
     
-    // Find the material to get available quantity
-    const material = materials.find(m => m.id === materialId);
-    if (material && availableQuantity) {
-        availableQuantity.textContent = `Available: ${material.qty} ${material.unit || 'pcs'}`;
-        if (transferQuantityInput) {
-            transferQuantityInput.max = material.qty;
-        }
-    }
-    
     if (listingType) {
         listingTypeSelect.value = listingType;
-        const isTransfer = listingType === 'internal_transfer';
-        targetProjectGroup.style.display = isTransfer ? 'block' : 'none';
-        if (transferQuantityGroup) transferQuantityGroup.style.display = isTransfer ? 'block' : 'none';
-        if (transferNotesGroup) transferNotesGroup.style.display = isTransfer ? 'block' : 'none';
     }
     
     modal.classList.add('show');
@@ -767,18 +1511,11 @@ function setupEventListeners() {
         }
     });
     
-    // Listing type change handler
+    // Listing type change handler (removed internal transfer logic)
     const listingTypeSelect = document.getElementById('listing-type');
     if (listingTypeSelect) {
         listingTypeSelect.addEventListener('change', function() {
-            const targetProjectGroup = document.getElementById('target-project-group');
-            const transferQuantityGroup = document.getElementById('transfer-quantity-group');
-            const transferNotesGroup = document.getElementById('transfer-notes-group');
-            const isTransfer = this.value === 'internal_transfer';
-            
-            targetProjectGroup.style.display = isTransfer ? 'block' : 'none';
-            if (transferQuantityGroup) transferQuantityGroup.style.display = isTransfer ? 'block' : 'none';
-            if (transferNotesGroup) transferNotesGroup.style.display = isTransfer ? 'block' : 'none';
+            // No special handling needed anymore
         });
     }
     
@@ -1076,15 +1813,50 @@ async function uploadCSV() {
         console.log('📡 Response received:', {
             status: response.status,
             statusText: response.statusText,
-            ok: response.ok
+            ok: response.ok,
+            contentType: response.headers.get('content-type')
         });
+        
+        // Check if response is ok
+        if (!response.ok) {
+            // Try to get error message from response
+            let errorData;
+            const contentType = response.headers.get('content-type');
+            
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    errorData = await response.json();
+                } catch (jsonError) {
+                    console.error('Failed to parse error response as JSON:', jsonError);
+                    const text = await response.text();
+                    throw new Error(`Server error (${response.status}): ${text || response.statusText}`);
+                }
+            } else {
+                const text = await response.text();
+                throw new Error(`Server error (${response.status}): ${text || response.statusText}`);
+            }
+            
+            throw new Error(errorData?.message || errorData?.error || `Server returned error: ${response.status} ${response.statusText}`);
+        }
         
         // Update progress to completion
         progressFill.style.width = '90%';
         progressText.textContent = 'Processing completed, saving to database...';
         
-        const result = await response.json();
-        console.log('📊 Server response:', result);
+        // Parse JSON response
+        let result;
+        try {
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                throw new Error(`Unexpected response format: ${contentType}. Response: ${text.substring(0, 100)}`);
+            }
+            result = await response.json();
+            console.log('📊 Server response:', result);
+        } catch (parseError) {
+            console.error('❌ Failed to parse response:', parseError);
+            throw new Error('Invalid response from server. Please try again.');
+        }
         
         // Complete progress
         progressFill.style.width = '100%';
@@ -1153,8 +1925,24 @@ async function uploadCSV() {
         progressFill.style.backgroundColor = '#ef4444';
         progressText.textContent = 'Network error occurred!';
         
-        showNotification('Error uploading file', 'error');
+        let errorMessage = 'Error uploading file';
+        
+        // Provide more specific error messages
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            errorMessage = 'Network connection error. Please check your internet connection and try again.';
+        } else if (error.message) {
+            errorMessage = `Error: ${error.message}`;
+        } else if (error.toString) {
+            errorMessage = `Error: ${error.toString()}`;
+        }
+        
+        showNotification(errorMessage, 'error');
         console.error('Upload error:', error);
+        console.error('Error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
     } finally {
         // Reset progress bar after delay
         setTimeout(() => {
@@ -1208,94 +1996,8 @@ async function handleListingAction(e) {
     
     const materialId = document.getElementById('action-material-id').value;
     const listingType = document.getElementById('listing-type').value;
-    const targetProjectId = document.getElementById('target-project').value;
     
-    // Handle internal transfer separately
-    if (listingType === 'internal_transfer') {
-        const transferQuantity = document.getElementById('transfer-quantity').value;
-        const transferNotes = document.getElementById('transfer-notes').value;
-        
-        if (!targetProjectId) {
-            showNotification('Please select a target project', 'error');
-            return;
-        }
-        
-        if (!transferQuantity || transferQuantity <= 0) {
-            showNotification('Please enter a valid transfer quantity', 'error');
-            return;
-        }
-        
-        // Find current project of the material
-        const material = materials.find(m => m.id === materialId);
-        if (!material) {
-            showNotification('Material not found', 'error');
-            return;
-        }
-        
-        if (parseInt(transferQuantity) > material.qty) {
-            showNotification('Transfer quantity cannot exceed available quantity', 'error');
-            return;
-        }
-        
-        if (material.projectId === targetProjectId) {
-            showNotification('Cannot transfer to the same project', 'error');
-            return;
-        }
-        
-        try {
-            console.log('🔄 Starting internal transfer...');
-            
-            const transferData = {
-                userId: currentUser.id,
-                materialId: materialId,
-                fromProjectId: material.projectId,
-                toProjectId: targetProjectId,
-                quantityTransferred: parseInt(transferQuantity),
-                notes: transferNotes
-            };
-            
-            console.log('📊 Transfer data:', transferData);
-            
-            // Validate data before sending
-            if (!transferData.userId || !transferData.materialId || !transferData.fromProjectId || 
-                !transferData.toProjectId || !transferData.quantityTransferred) {
-                console.error('❌ Missing required fields:');
-                console.error('  userId:', transferData.userId);
-                console.error('  materialId:', transferData.materialId);
-                console.error('  fromProjectId:', transferData.fromProjectId);
-                console.error('  toProjectId:', transferData.toProjectId);
-                console.error('  quantityTransferred:', transferData.quantityTransferred);
-                console.error('  material object:', material);
-                showNotification('Missing required data for transfer', 'error');
-                return;
-            }
-            
-            const response = await fetch('/api/internal-transfer', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(transferData)
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                showNotification(`Successfully transferred ${transferQuantity} ${material.unit || 'pcs'} to target project`, 'success');
-                closeListingActionModal();
-                loadInventory(); // Refresh inventory
-            } else {
-                showNotification(result.error || 'Error performing transfer', 'error');
-            }
-        } catch (error) {
-            showNotification('Error performing transfer', 'error');
-            console.error('Transfer error:', error);
-        }
-        
-        return;
-    }
-    
-    // Handle regular listing type updates
+    // Handle regular listing type updates (internal transfer removed)
     try {
         const response = await fetch(`/api/materials/${materialId}/listing-type`, {
             method: 'PUT',
@@ -2005,30 +2707,67 @@ function displayOrderHistory(orders) {
     historyList.innerHTML = filteredOrders.map(order => {
         const isTransfer = order.buyer_company === 'Internal Transfer';
         
+        // Parse photo - could be single string or JSON array
+        let photos = [];
+        if (order.photo) {
+            try {
+                photos = JSON.parse(order.photo);
+                if (!Array.isArray(photos)) photos = [order.photo];
+            } catch {
+                photos = [order.photo];
+            }
+        }
+        const firstPhoto = photos.length > 0 ? photos[0] : null;
+        
         return `
-        <div class="order-history-item ${isTransfer ? 'internal-transfer' : ''}">
-            <div class="order-header">
+        <div class="order-history-item ${isTransfer ? 'internal-transfer' : ''}" style="border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 15px; background: white;">
+            <div style="display: grid; grid-template-columns: 150px 1fr; gap: 20px;">
+                ${firstPhoto ? `
+                <div style="width: 150px; height: 150px; border-radius: 8px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e7eb;">
+                    <img src="${firstPhoto}" alt="${order.material_name}" style="width: 100%; height: 100%; object-fit: contain; padding: 8px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                        <i class="fas fa-image" style="font-size:1.5rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                        <span style="font-size: 0.75rem;">No Image</span>
+                    </div>
+                </div>
+                ` : `
+                <div style="width: 150px; height: 150px; border-radius: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af;">
+                    <i class="fas fa-image" style="font-size:1.5rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                    <span style="font-size: 0.75rem;">No Image</span>
+                </div>
+                `}
                 <div>
-                    <h4>${isTransfer ? 'Transfer' : 'Order'} #${order.id.substring(0, 8)}</h4>
-                    <span class="status-badge status-${order.status}">
-                        ${isTransfer ? 'INTERNAL TRANSFER' : order.status.toUpperCase()}
-                    </span>
+                    <div class="order-header" style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                        <div>
+                            <h4 style="margin: 0 0 4px 0;">${isTransfer ? 'Transfer' : 'Order'} #${order.id.substring(0, 8)}</h4>
+                            <span class="status-badge status-${order.status}">
+                                ${isTransfer ? 'INTERNAL TRANSFER' : order.status.toUpperCase()}
+                            </span>
+                        </div>
+                        <div class="order-date">
+                            <small>${formatDateTime(order.created_at)}</small>
+                        </div>
+                    </div>
+                    <div class="order-details">
+                        <p style="margin: 4px 0;"><strong>Material:</strong> ${order.material_name}</p>
+                        ${order.brand ? `<p style="margin: 4px 0;"><strong>Brand:</strong> ${order.brand}</p>` : ''}
+                        ${order.category ? `<p style="margin: 4px 0;"><strong>Category:</strong> ${order.category}</p>` : ''}
+                        ${order.condition ? `<p style="margin: 4px 0;"><strong>Condition:</strong> ${order.condition.charAt(0).toUpperCase() + order.condition.slice(1)}</p>` : ''}
+                        <p style="margin: 4px 0;"><strong>Quantity:</strong> ${order.quantity} ${order.unit || 'units'}</p>
+                        ${order.dimensions ? `<p style="margin: 4px 0;"><strong>Dimensions:</strong> ${order.dimensions}</p>` : ''}
+                        ${order.weight ? `<p style="margin: 4px 0;"><strong>Weight:</strong> ${order.weight} kg</p>` : ''}
+                        ${order.specs ? `<p style="margin: 4px 0;"><strong>Specifications:</strong> ${order.specs.substring(0, 100)}${order.specs.length > 100 ? '...' : ''}</p>` : ''}
+                        ${!isTransfer ? `<p style="margin: 4px 0;"><strong>Total Amount:</strong> ${formatIndianCurrency(order.total_amount)}</p>` : ''}
+                        ${order.mrp ? `<p style="margin: 4px 0;"><strong>MRP:</strong> ₹${order.mrp}</p>` : ''}
+                        ${isTransfer ? 
+                            `<p style="margin: 4px 0;"><strong>From Project:</strong> ${order.buyer_contact_person || 'N/A'}</p>
+                             <p style="margin: 4px 0;"><strong>To Project:</strong> ${order.shipping_address || 'N/A'}</p>` :
+                            `<p style="margin: 4px 0;"><strong>Buyer:</strong> ${order.buyer_name} (${order.buyer_company || 'N/A'})</p>
+                             ${order.shipping_address ? `<p style="margin: 4px 0;"><strong>Shipping:</strong> ${order.shipping_address}</p>` : ''}`
+                        }
+                        ${order.delivery_notes ? `<p style="margin: 4px 0;"><strong>Notes:</strong> ${order.delivery_notes}</p>` : ''}
+                    </div>
                 </div>
-                <div class="order-date">
-                    <small>Transaction: ${formatDateTime(order.created_at)}</small>
-                </div>
-            </div>
-            <div class="order-details">
-                <p><strong>Material:</strong> ${order.material_name}</p>
-                <p><strong>Quantity:</strong> ${order.quantity} ${order.unit || 'units'}</p>
-                ${!isTransfer ? `<p><strong>Total Amount:</strong> ${formatIndianCurrency(order.total_amount)}</p>` : ''}
-                ${isTransfer ? 
-                    `<p><strong>From Project:</strong> ${order.buyer_contact_person || 'N/A'}</p>
-                     <p><strong>To Project:</strong> ${order.shipping_address || 'N/A'}</p>` :
-                    `<p><strong>Buyer:</strong> ${order.buyer_name} (${order.buyer_company || 'N/A'})</p>
-                     ${order.shipping_address ? `<p><strong>Shipping:</strong> ${order.shipping_address}</p>` : ''}`
-                }
-                ${order.delivery_notes ? `<p><strong>Notes:</strong> ${order.delivery_notes}</p>` : ''}
             </div>
         </div>
         `;
@@ -2160,6 +2899,9 @@ window.showTab = showTab;
 window.showOrderSubtab = showOrderSubtab;
 window.loadOrderHistory = loadOrderHistory;
 window.exportOrderHistory = exportOrderHistory;
+window.editMaterial = editMaterial;
+window.closeEditModal = closeEditModal;
+window.cancelEdit = cancelEdit;
 window.setView = setView;
 window.toggleDropdown = toggleDropdown;
 window.updateListingType = updateListingType;
@@ -2170,6 +2912,16 @@ window.goToSlide = goToSlide;
 window.triggerPhotoUpload = triggerPhotoUpload;
 window.handlePhotoFiles = handlePhotoFiles;
 window.removeUploadedPhoto = removeUploadedPhoto;
+window.triggerEditPhotoUpload = triggerEditPhotoUpload;
+window.handleEditPhotoFiles = handleEditPhotoFiles;
+window.removeEditPhoto = removeEditPhoto;
+window.viewMaterialDetail = viewMaterialDetail;
+window.closeMaterialDetailModal = closeMaterialDetailModal;
+window.changeDetailSlide = changeDetailSlide;
+window.goToDetailSlide = goToDetailSlide;
+window.toggleUserProfile = toggleUserProfile;
+window.openAccountPage = openAccountPage;
+window.closeAccountModal = closeAccountModal;
 window.markAcquiredForSale = markAcquiredForSale;
 window.markAllNotificationsRead = markAllNotificationsRead;
 window.clearAllNotifications = clearAllNotifications;
@@ -2267,6 +3019,14 @@ function displayOrderRequests() {
                 listing_id: request.listing_id,
                 current_price: request.current_price,
                 available_qty: request.available_qty || 0,
+                photo: request.photo,
+                brand: request.brand,
+                category: request.category,
+                condition: request.condition,
+                specs: request.specs,
+                dimensions: request.dimensions,
+                weight: request.weight,
+                mrp: request.mrp,
                 requests: []
             };
         }
@@ -2278,26 +3038,61 @@ function displayOrderRequests() {
         const requestCount = sortedRequests.length;
         const totalRequestedQty = sortedRequests.reduce((sum, req) => sum + req.quantity, 0);
         
+        // Parse photo - could be single string or JSON array
+        let photos = [];
+        if (materialData.photo) {
+            try {
+                photos = JSON.parse(materialData.photo);
+                if (!Array.isArray(photos)) photos = [materialData.photo];
+            } catch {
+                photos = [materialData.photo];
+            }
+        }
+        const firstPhoto = photos.length > 0 ? photos[0] : null;
+        
         return `
             <div class="material-request-group" data-material-id="${materialId}" style="border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 20px; background: white;">
-                <div class="material-header" style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-                    <div class="material-info">
-                        <h4 style="margin: 0 0 8px 0; color: #1f2937; font-size: 18px;">${materialData.material}</h4>
-                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                            <span class="current-price" style="color: #059669; font-weight: 600;">
-                                <i class="fas fa-rupee-sign"></i> ${materialData.current_price}/unit
-                            </span>
-                            <span style="color: #3b82f6;">
-                                <i class="fas fa-boxes"></i> Available: ${materialData.available_qty} units
-                            </span>
+                <div style="display: grid; grid-template-columns: 200px 1fr; gap: 20px; margin-bottom: 15px;">
+                    ${firstPhoto ? `
+                    <div style="width: 200px; height: 200px; border-radius: 8px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e7eb;">
+                        <img src="${firstPhoto}" alt="${materialData.material}" style="width: 100%; height: 100%; object-fit: contain; padding: 8px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                            <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                            <span style="font-size: 0.875rem; font-weight: 500;">No Image</span>
                         </div>
                     </div>
-                    <div class="request-summary" style="text-align: right;">
-                        <div class="request-count" style="background: #fef3c7; color: #92400e; padding: 6px 12px; border-radius: 20px; font-weight: 600; display: inline-block;">
-                            ${requestCount} Buyer${requestCount > 1 ? 's' : ''} Interested
+                    ` : `
+                    <div style="width: 200px; height: 200px; border-radius: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af;">
+                        <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                        <span style="font-size: 0.875rem; font-weight: 500;">No Image</span>
+                    </div>
+                    `}
+                    <div class="material-header" style="display: flex; flex-direction: column; justify-content: space-between;">
+                        <div class="material-info">
+                            <h4 style="margin: 0 0 8px 0; color: #1f2937; font-size: 18px;">${materialData.material}</h4>
+                            ${materialData.brand ? `<p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px; font-weight: 600;">${materialData.brand}</p>` : ''}
+                            <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+                                ${materialData.category ? `<span style="padding: 4px 10px; background: #dbeafe; color: #1e40af; border-radius: 12px; font-size: 12px; font-weight: 600;">${materialData.category}</span>` : ''}
+                                ${materialData.condition ? `<span style="padding: 4px 10px; background: #fef3c7; color: #92400e; border-radius: 12px; font-size: 12px; font-weight: 600;">${materialData.condition.charAt(0).toUpperCase() + materialData.condition.slice(1)}</span>` : ''}
+                                <span class="current-price" style="color: #059669; font-weight: 600;">
+                                    <i class="fas fa-rupee-sign"></i> ${materialData.current_price}/unit
+                                </span>
+                                <span style="color: #3b82f6;">
+                                    <i class="fas fa-boxes"></i> Available: ${materialData.available_qty} units
+                                </span>
+                            </div>
+                            ${materialData.specs ? `<p style="margin: 0 0 8px 0; color: #4b5563; font-size: 13px; line-height: 1.5;">${materialData.specs.substring(0, 150)}${materialData.specs.length > 150 ? '...' : ''}</p>` : ''}
+                            ${materialData.dimensions ? `<p style="margin: 0 0 4px 0; color: #6b7280; font-size: 12px;"><strong>Dimensions:</strong> ${materialData.dimensions}</p>` : ''}
+                            ${materialData.weight ? `<p style="margin: 0 0 4px 0; color: #6b7280; font-size: 12px;"><strong>Weight:</strong> ${materialData.weight} kg</p>` : ''}
+                            ${materialData.mrp ? `<p style="margin: 0; color: #6b7280; font-size: 12px;"><strong>MRP:</strong> ₹${materialData.mrp}</p>` : ''}
                         </div>
-                        <div style="margin-top: 5px;">
-                            <small style="color: #6b7280;">Total Requested: ${totalRequestedQty} units</small>
+                        <div class="request-summary" style="text-align: right; margin-top: 12px;">
+                            <div class="request-count" style="background: #fef3c7; color: #92400e; padding: 6px 12px; border-radius: 20px; font-weight: 600; display: inline-block;">
+                                ${requestCount} Buyer${requestCount > 1 ? 's' : ''} Interested
+                            </div>
+                            <div style="margin-top: 5px;">
+                                <small style="color: #6b7280;">Total Requested: ${totalRequestedQty} units</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2881,6 +3676,671 @@ initializeDashboard = function() {
     loadTransactionHistory();
 };
 
+// Profile Page Functions
+let profileOrders = [];
+let profileOrderRequests = [];
+let profileInventory = [];
+
+function openProfilePage() {
+    // Close profile dropdown first
+    const menu = document.getElementById('user-profile-menu');
+    if (menu) menu.style.display = 'none';
+    
+    // Load profile data
+    loadProfileData();
+    
+    // Open profile modal
+    const modal = document.getElementById('profile-page-modal');
+    if (modal) {
+        modal.classList.add('show');
+        // Switch to overview tab by default
+        switchProfileTab('overview');
+    }
+}
+
+function closeProfilePage() {
+    const modal = document.getElementById('profile-page-modal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+async function loadProfileData() {
+    if (!currentUser || !currentUser.id) return;
+    
+    try {
+        // Load user details
+        const userResponse = await fetch(`/api/users/${currentUser.id}`);
+        if (userResponse.ok) {
+            const userResult = await userResponse.json();
+            if (userResult.success && userResult.user) {
+                populateProfilePage(userResult.user);
+            }
+        }
+        
+        // Load sales orders
+        const ordersResponse = await fetch(`/api/seller/${currentUser.id}/orders`);
+        if (ordersResponse.ok) {
+            const orders = await ordersResponse.json();
+            profileOrders = Array.isArray(orders) ? orders : [];
+            displayProfileOrders();
+            updateProfileStats();
+        }
+        
+        // Load order requests
+        const requestsResponse = await fetch(`/api/seller/${currentUser.id}/order-requests`);
+        if (requestsResponse.ok) {
+            const requestsResult = await requestsResponse.json();
+            if (requestsResult.success) {
+                profileOrderRequests = requestsResult.requests || [];
+                displayProfileRequests();
+                updateProfileStats();
+            }
+        }
+        
+        // Load inventory
+        const inventoryResponse = await fetch(`/api/seller/${currentUser.id}/materials`);
+        if (inventoryResponse.ok) {
+            const inventory = await inventoryResponse.json();
+            profileInventory = Array.isArray(inventory) ? inventory : [];
+            displayInventorySummary();
+        }
+    } catch (error) {
+        console.error('Error loading profile data:', error);
+    }
+}
+
+function populateProfilePage(user) {
+    document.getElementById('profile-page-name').textContent = user.name || 'User';
+    document.getElementById('profile-page-email').textContent = user.email || '-';
+    document.getElementById('profile-page-company').textContent = user.company_name || user.companyName || 'Not specified';
+    document.getElementById('profile-page-phone').textContent = user.phone || 'Not provided';
+    document.getElementById('profile-page-designation').textContent = user.designation || 'Not specified';
+    document.getElementById('profile-page-project').textContent = user.project_name || 'Not specified';
+    document.getElementById('profile-page-address').textContent = user.address || 'Not provided';
+}
+
+function updateProfileStats() {
+    const totalOrders = profileOrders.length;
+    const completedOrders = profileOrders.filter(o => o.status === 'completed' || o.status === 'delivered' || o.status === 'approved').length;
+    const pendingRequests = profileOrderRequests.filter(r => r.status === 'pending').length;
+    
+    document.getElementById('profile-total-orders').textContent = totalOrders;
+    document.getElementById('profile-completed-orders').textContent = completedOrders;
+    document.getElementById('profile-pending-requests').textContent = pendingRequests;
+    
+    // Update tab badges
+    const ordersBadge = document.getElementById('orders-count-badge');
+    const requestsBadge = document.getElementById('requests-count-badge');
+    
+    if (ordersBadge) {
+        if (totalOrders > 0) {
+            ordersBadge.textContent = totalOrders;
+            ordersBadge.style.display = 'inline-block';
+        } else {
+            ordersBadge.style.display = 'none';
+        }
+    }
+    
+    if (requestsBadge) {
+        if (pendingRequests > 0) {
+            requestsBadge.textContent = pendingRequests;
+            requestsBadge.style.display = 'inline-block';
+        } else {
+            requestsBadge.style.display = 'none';
+        }
+    }
+}
+
+function displayProfileOrders() {
+    const ordersList = document.getElementById('profile-orders-list');
+    const recentOrders = document.getElementById('profile-recent-orders');
+    
+    if (!ordersList) return;
+    
+    if (profileOrders.length === 0) {
+        ordersList.innerHTML = `
+            <div style="text-align: center; padding: 3rem; color: #6b7280;">
+                <i class="fas fa-shopping-bag" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                <p style="font-size: 1.1rem; font-weight: 500;">No sales orders yet</p>
+                <p style="margin-top: 0.5rem;">Your completed sales will appear here</p>
+            </div>
+        `;
+        
+        if (recentOrders) {
+            recentOrders.innerHTML = `
+                <div style="text-align: center; padding: 2rem; color: #6b7280;">
+                    <i class="fas fa-shopping-bag" style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5;"></i>
+                    <p>No recent sales</p>
+                </div>
+            `;
+        }
+        return;
+    }
+    
+    // Display all orders
+    ordersList.innerHTML = profileOrders.map(order => {
+        // Parse photo
+        let photos = [];
+        if (order.photo) {
+            try {
+                photos = JSON.parse(order.photo);
+                if (!Array.isArray(photos)) photos = [order.photo];
+            } catch {
+                photos = [order.photo];
+            }
+        }
+        const firstPhoto = photos.length > 0 ? photos[0] : null;
+        
+        return `
+            <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="display: grid; grid-template-columns: 150px 1fr auto; gap: 1.5rem; align-items: start;">
+                    ${firstPhoto ? `
+                    <div style="width: 150px; height: 150px; border-radius: 8px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e7eb;">
+                        <img src="${firstPhoto}" alt="${order.material_name}" style="width: 100%; height: 100%; object-fit: contain; padding: 0.5rem;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                            <i class="fas fa-image" style="font-size:1.5rem; opacity: 0.5;"></i>
+                        </div>
+                    </div>
+                    ` : `
+                    <div style="width: 150px; height: 150px; border-radius: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af;">
+                        <i class="fas fa-image" style="font-size:1.5rem; opacity: 0.5;"></i>
+                    </div>
+                    `}
+                    
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: start; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem 0; font-size: 1.125rem; font-weight: 700; color: #1f2937;">${order.material_name}</h4>
+                                ${order.brand ? `<p style="margin: 0 0 0.5rem 0; color: #6b7280; font-size: 0.875rem;">${order.brand}</p>` : ''}
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                                    ${order.category ? `<span style="padding: 0.25rem 0.5rem; background: #dbeafe; color: #1e40af; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;">${order.category}</span>` : ''}
+                                    ${order.condition ? `<span style="padding: 0.25rem 0.5rem; background: #fef3c7; color: #92400e; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;">${order.condition.charAt(0).toUpperCase() + order.condition.slice(1)}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Order ID</div>
+                                <div style="font-size: 0.875rem; font-weight: 500; font-family: monospace;">${order.id.substring(0, 12)}...</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Quantity</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${order.quantity} ${order.unit || 'units'}</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Buyer</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${order.buyer_name}${order.buyer_company ? ` (${order.buyer_company})` : ''}</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Order Date</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${formatDateTime(order.created_at)}</div>
+                            </div>
+                        </div>
+                        
+                        ${order.shipping_address ? `
+                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: #ecfdf5; border-radius: 8px; border-left: 3px solid #10b981;">
+                            <div style="color: #065f46; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Shipping Address</div>
+                            <div style="color: #047857; font-size: 0.875rem; line-height: 1.5;">${order.shipping_address}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div style="text-align: right; min-width: 150px;">
+                        <div style="margin-bottom: 0.75rem;">
+                            <span class="status-badge status-${order.status}" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                                ${order.status.toUpperCase()}
+                            </span>
+                        </div>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: #059669; margin-bottom: 0.5rem;">
+                            ${formatIndianCurrency(order.total_amount)}
+                        </div>
+                        <div style="font-size: 0.875rem; color: #6b7280;">
+                            <div>Unit: ${formatIndianCurrency(order.unit_price || order.current_price || 0)}</div>
+                            <div style="margin-top: 0.25rem;">Platform Fee: ${formatIndianCurrency(order.platform_fee || 0)}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Display recent orders (first 3)
+    if (recentOrders) {
+        const recentOrdersList = profileOrders.slice(0, 3);
+        if (recentOrdersList.length > 0) {
+            recentOrders.innerHTML = recentOrdersList.map(order => {
+                let photos = [];
+                if (order.photo) {
+                    try {
+                        photos = JSON.parse(order.photo);
+                        if (!Array.isArray(photos)) photos = [order.photo];
+                    } catch {
+                        photos = [order.photo];
+                    }
+                }
+                const firstPhoto = photos.length > 0 ? photos[0] : null;
+                
+                return `
+                    <div style="display: flex; gap: 1rem; padding: 1rem; border-bottom: 1px solid #e5e7eb; align-items: center;">
+                        ${firstPhoto ? `
+                        <div style="width: 80px; height: 80px; border-radius: 8px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e7eb; flex-shrink: 0;">
+                            <img src="${firstPhoto}" alt="${order.material_name}" style="width: 100%; height: 100%; object-fit: contain; padding: 0.25rem;" onerror="this.style.display='none';">
+                        </div>
+                        ` : `
+                        <div style="width: 80px; height: 80px; border-radius: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; flex-shrink: 0; display:flex; align-items:center; justify-content:center; color:#9ca3af;">
+                            <i class="fas fa-image" style="font-size:1.25rem; opacity: 0.5;"></i>
+                        </div>
+                        `}
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; margin-bottom: 0.25rem;">${order.material_name}</div>
+                            <div style="font-size: 0.875rem; color: #6b7280;">${order.quantity} ${order.unit || 'units'} • ${formatDateTime(order.created_at)}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-weight: 700; color: #059669; margin-bottom: 0.25rem;">${formatIndianCurrency(order.total_amount)}</div>
+                            <span class="status-badge status-${order.status}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                                ${order.status.toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+}
+
+function displayProfileRequests() {
+    const requestsList = document.getElementById('profile-requests-list');
+    if (!requestsList) return;
+    
+    if (profileOrderRequests.length === 0) {
+        requestsList.innerHTML = `
+            <div style="text-align: center; padding: 3rem; color: #6b7280;">
+                <i class="fas fa-clock" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                <p style="font-size: 1.1rem; font-weight: 500;">No order requests</p>
+                <p style="margin-top: 0.5rem;">Incoming order requests will appear here</p>
+            </div>
+        `;
+        return;
+    }
+    
+    requestsList.innerHTML = profileOrderRequests.map(request => {
+        // Parse photo
+        let photos = [];
+        if (request.photo) {
+            try {
+                photos = JSON.parse(request.photo);
+                if (!Array.isArray(photos)) photos = [request.photo];
+            } catch {
+                photos = [request.photo];
+            }
+        }
+        const firstPhoto = photos.length > 0 ? photos[0] : null;
+        
+        return `
+            <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="display: grid; grid-template-columns: 150px 1fr auto; gap: 1.5rem; align-items: start;">
+                    ${firstPhoto ? `
+                    <div style="width: 150px; height: 150px; border-radius: 8px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e7eb;">
+                        <img src="${firstPhoto}" alt="${request.material_name}" style="width: 100%; height: 100%; object-fit: contain; padding: 0.5rem;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                            <i class="fas fa-image" style="font-size:1.5rem; opacity: 0.5;"></i>
+                        </div>
+                    </div>
+                    ` : `
+                    <div style="width: 150px; height: 150px; border-radius: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af;">
+                        <i class="fas fa-image" style="font-size:1.5rem; opacity: 0.5;"></i>
+                    </div>
+                    `}
+                    
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: start; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem 0; font-size: 1.125rem; font-weight: 700; color: #1f2937;">${request.material_name}</h4>
+                                ${request.brand ? `<p style="margin: 0 0 0.5rem 0; color: #6b7280; font-size: 0.875rem;">${request.brand}</p>` : ''}
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                                    ${request.category ? `<span style="padding: 0.25rem 0.5rem; background: #dbeafe; color: #1e40af; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;">${request.category}</span>` : ''}
+                                    ${request.condition ? `<span style="padding: 0.25rem 0.5rem; background: #fef3c7; color: #92400e; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;">${request.condition.charAt(0).toUpperCase() + request.condition.slice(1)}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Request ID</div>
+                                <div style="font-size: 0.875rem; font-weight: 500; font-family: monospace;">${request.id.substring(0, 12)}...</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Quantity</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${request.quantity} ${request.unit || 'units'}</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Buyer</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${request.buyer_name}${request.buyer_company && request.buyer_company.toLowerCase() !== 'n/a' ? ` (${request.buyer_company})` : ''}</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Requested On</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${formatDateTime(request.created_at)}</div>
+                            </div>
+                        </div>
+                        
+                        ${request.delivery_address ? `
+                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: #ecfdf5; border-radius: 8px; border-left: 3px solid #10b981;">
+                            <div style="color: #065f46; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Delivery Address</div>
+                            <div style="color: #047857; font-size: 0.875rem; line-height: 1.5;">${request.delivery_address}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div style="text-align: right; min-width: 150px;">
+                        <div style="margin-bottom: 0.75rem;">
+                            <span class="status-badge status-${request.status}" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                                ${request.status.toUpperCase().replace('_', ' ')}
+                            </span>
+                        </div>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: #059669; margin-bottom: 0.5rem;">
+                            ${formatIndianCurrency(request.total_amount)}
+                        </div>
+                        <div style="font-size: 0.875rem; color: #6b7280;">
+                            Unit: ${formatIndianCurrency(request.unit_price || request.current_price || 0)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function switchProfileTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.profile-tab-content').forEach(tab => {
+        tab.style.display = 'none';
+        tab.classList.remove('active');
+    });
+    
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.profile-tab').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Show selected tab
+    const selectedTab = document.getElementById(`profile-${tabName}-tab`);
+    const selectedBtn = document.querySelector(`.profile-tab[data-tab="${tabName}"]`);
+    
+    if (selectedTab) {
+        selectedTab.style.display = 'block';
+        selectedTab.classList.add('active');
+    }
+    
+    if (selectedBtn) {
+        selectedBtn.classList.add('active');
+    }
+    
+    // Load data for specific tabs
+    if (tabName === 'orders') {
+        displayProfileOrders();
+    } else if (tabName === 'requests') {
+        displayProfileRequests();
+    } else if (tabName === 'inventory') {
+        displayInventorySummary();
+    } else if (tabName === 'account') {
+        loadProfileAccountForm();
+    }
+}
+
+function loadProfileAccountForm() {
+    if (!currentUser || !currentUser.id) return;
+    
+    // Fetch latest user data
+    fetch(`/api/users/${currentUser.id}`)
+        .then(response => response.json())
+        .then(result => {
+            if (result.success && result.user) {
+                const user = result.user;
+                document.getElementById('profile-account-name').value = user.name || '';
+                document.getElementById('profile-account-email').value = user.email || '';
+                document.getElementById('profile-account-company').value = user.company_name || user.companyName || '';
+                document.getElementById('profile-account-phone').value = user.phone || '';
+                document.getElementById('profile-account-project').value = user.project_name || '';
+                document.getElementById('profile-account-address').value = user.address || '';
+                document.getElementById('profile-account-designation').value = user.designation || '';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading account data:', error);
+            // Fallback to currentUser
+            if (currentUser) {
+                document.getElementById('profile-account-name').value = currentUser.name || '';
+                document.getElementById('profile-account-email').value = currentUser.email || '';
+                document.getElementById('profile-account-company').value = currentUser.company_name || currentUser.companyName || '';
+                document.getElementById('profile-account-phone').value = currentUser.phone || '';
+                document.getElementById('profile-account-project').value = currentUser.project_name || '';
+                document.getElementById('profile-account-address').value = currentUser.address || '';
+                document.getElementById('profile-account-designation').value = currentUser.designation || '';
+            }
+        });
+}
+
+function displayInventorySummary() {
+    const summaryList = document.getElementById('inventory-summary-list');
+    if (!summaryList) return;
+    
+    if (profileInventory.length === 0) {
+        summaryList.innerHTML = `
+            <div style="text-align: center; padding: 3rem; color: #6b7280;">
+                <i class="fas fa-boxes" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                <p style="font-size: 1.1rem; font-weight: 500;">No inventory found</p>
+                <p style="margin-top: 0.5rem;">Start adding materials to see your inventory summary</p>
+            </div>
+        `;
+        document.getElementById('inventory-total-items').textContent = '0';
+        document.getElementById('inventory-total-quantity').textContent = '0';
+        document.getElementById('inventory-total-value').textContent = '₹0';
+        return;
+    }
+    
+    // Calculate totals
+    const totalItems = profileInventory.length;
+    const totalQuantity = profileInventory.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0);
+    const totalValue = profileInventory.reduce((sum, item) => {
+        const price = parseFloat(item.price_today || item.priceToday || 0);
+        const qty = parseFloat(item.qty || 0);
+        return sum + (price * qty);
+    }, 0);
+    
+    // Update summary cards
+    document.getElementById('inventory-total-items').textContent = totalItems.toLocaleString();
+    document.getElementById('inventory-total-quantity').textContent = totalQuantity.toLocaleString();
+    document.getElementById('inventory-total-value').textContent = formatIndianCurrency(totalValue);
+    
+    // Group inventory by project and location
+    const groupedInventory = {};
+    
+    profileInventory.forEach(item => {
+        const projectName = item.project_name || item.projectId || 'Unassigned Project';
+        const location = item.project_location || item.location_details || item.location || 'No Location';
+        const key = `${projectName}|${location}`;
+        
+        if (!groupedInventory[key]) {
+            groupedInventory[key] = {
+                projectName,
+                location,
+                items: [],
+                totalQuantity: 0,
+                totalValue: 0
+            };
+        }
+        
+        const qty = parseFloat(item.qty || 0);
+        const price = parseFloat(item.price_today || item.priceToday || 0);
+        const value = price * qty;
+        
+        groupedInventory[key].items.push(item);
+        groupedInventory[key].totalQuantity += qty;
+        groupedInventory[key].totalValue += value;
+    });
+    
+    // Convert to array and sort by project name
+    const groupedArray = Object.values(groupedInventory).sort((a, b) => {
+        if (a.projectName !== b.projectName) {
+            return a.projectName.localeCompare(b.projectName);
+        }
+        return a.location.localeCompare(b.location);
+    });
+    
+    // Display grouped inventory
+    summaryList.innerHTML = groupedArray.map(group => {
+        return `
+            <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e5e7eb;">
+                    <div>
+                        <h4 style="margin: 0 0 0.25rem 0; font-size: 1.25rem; font-weight: 700; color: #1f2937; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-project-diagram" style="color: #10b981;"></i>
+                            ${group.projectName}
+                        </h4>
+                        <p style="margin: 0; color: #6b7280; font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-map-marker-alt" style="color: #10b981; font-size: 0.75rem;"></i>
+                            ${group.location}
+                        </p>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Summary</div>
+                        <div style="font-size: 0.875rem; color: #1f2937;">
+                            <div><strong>${group.items.length}</strong> items</div>
+                            <div><strong>${group.totalQuantity.toLocaleString()}</strong> total qty</div>
+                            <div><strong style="color: #059669;">${formatIndianCurrency(group.totalValue)}</strong></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;">
+                    ${group.items.map(item => {
+                        const itemPrice = parseFloat(item.price_today || item.priceToday || 0);
+                        const itemQty = parseFloat(item.qty || 0);
+                        const itemValue = itemPrice * itemQty;
+                        
+                        return `
+                            <div style="background: #f9fafb; border-radius: 8px; padding: 1rem; border: 1px solid #e5e7eb;">
+                                <div style="font-weight: 600; color: #1f2937; margin-bottom: 0.5rem; font-size: 0.95rem;">
+                                    ${item.material}
+                                </div>
+                                ${item.brand ? `
+                                <div style="color: #6b7280; font-size: 0.875rem; margin-bottom: 0.5rem;">
+                                    ${item.brand}
+                                </div>
+                                ` : ''}
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span style="color: #6b7280; font-size: 0.75rem;">Qty:</span>
+                                    <span style="font-weight: 600; color: #1f2937;">${itemQty.toLocaleString()} ${item.unit || 'units'}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span style="color: #6b7280; font-size: 0.75rem;">Price:</span>
+                                    <span style="font-weight: 600; color: #059669;">${formatIndianCurrency(itemPrice)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #e5e7eb;">
+                                    <span style="color: #6b7280; font-size: 0.75rem; font-weight: 600;">Value:</span>
+                                    <span style="font-weight: 700; color: #059669; font-size: 0.95rem;">${formatIndianCurrency(itemValue)}</span>
+                                </div>
+                                ${item.category ? `
+                                <div style="margin-top: 0.5rem;">
+                                    <span style="padding: 0.25rem 0.5rem; background: #dbeafe; color: #1e40af; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;">
+                                        ${item.category}
+                                    </span>
+                                </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function setupProfileAccountForm() {
+    const form = document.getElementById('profile-account-form');
+    if (!form) return;
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        if (!currentUser || !currentUser.id) {
+            showNotification('User not found. Please sign in again.', 'error');
+            return;
+        }
+        
+        const updateData = {
+            name: document.getElementById('profile-account-name').value.trim(),
+            company_name: document.getElementById('profile-account-company').value.trim(),
+            phone: document.getElementById('profile-account-phone').value.trim(),
+            designation: document.getElementById('profile-account-designation').value,
+            project_name: document.getElementById('profile-account-project').value.trim() || null,
+            address: document.getElementById('profile-account-address').value.trim() || null
+        };
+        
+        // Validate required fields
+        if (!updateData.name) {
+            showNotification('Name is required', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/users/${currentUser.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updateData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showNotification('Account updated successfully!', 'success');
+                
+                // Update currentUser in localStorage
+                currentUser.name = updateData.name;
+                currentUser.companyName = updateData.company_name;
+                currentUser.company_name = updateData.company_name;
+                currentUser.phone = updateData.phone;
+                currentUser.designation = updateData.designation;
+                currentUser.project_name = updateData.project_name;
+                currentUser.address = updateData.address;
+                localStorage.setItem('greenscore-user', JSON.stringify(currentUser));
+                
+                // Update profile display
+                updateProfileDetails({
+                    ...currentUser,
+                    company_name: updateData.company_name,
+                    phone: updateData.phone,
+                    designation: updateData.designation
+                });
+                
+                // Reload profile page data to reflect changes
+                populateProfilePage(currentUser);
+                
+                // Update profile button name
+                const profileUserName = document.getElementById('profile-user-name');
+                if (profileUserName) {
+                    profileUserName.textContent = updateData.name;
+                }
+                
+                // Update seller name if displayed
+                const sellerNameElement = document.getElementById('seller-name');
+                if (sellerNameElement) {
+                    sellerNameElement.textContent = updateData.name;
+                }
+            } else {
+                showNotification(result.error || 'Failed to update account', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating account:', error);
+            showNotification('Error updating account. Please try again.', 'error');
+        }
+    });
+}
+
 // Make functions available globally
 window.debugElements = debugElements;
 window.uploadCSV = uploadCSV;
@@ -2897,3 +4357,6 @@ window.selectAllRequests = selectAllRequests;
 window.approveSelectedRequests = approveSelectedRequests;
 window.loadTransactionHistory = loadTransactionHistory;
 window.exportTransactionHistory = exportTransactionHistory;
+window.openProfilePage = openProfilePage;
+window.closeProfilePage = closeProfilePage;
+window.switchProfileTab = switchProfileTab;

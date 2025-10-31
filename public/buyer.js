@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (currentUser) {
         document.getElementById('buyer-welcome').textContent = 
             `Welcome, ${currentUser.name}! Find quality surplus construction materials at competitive prices`;
+        
+        // Initialize user profile if user is logged in
+        initializeUserProfile();
     }
     
     loadCategories();
@@ -40,6 +43,12 @@ document.addEventListener('DOMContentLoaded', function() {
             dropdown.style.display = 'none';
         }
     });
+    
+    // Setup account form submission
+    setupAccountForm();
+    
+    // Setup profile account form submission
+    setupProfileAccountForm();
 });
 
 // Authentication functions
@@ -52,6 +61,243 @@ function signOut() {
     localStorage.removeItem('greenscore-user');
     localStorage.removeItem('greenscore-cart'); // Clear cart on sign out
     window.location.href = '/';
+}
+
+// User Profile Dropdown Functions
+async function initializeUserProfile() {
+    if (!currentUser) return;
+    
+    // Set name in button
+    const profileUserName = document.getElementById('profile-user-name');
+    if (profileUserName && currentUser) {
+        profileUserName.textContent = currentUser.name || 'User';
+    }
+    
+    // Load full user details
+    await loadUserProfileDetails();
+}
+
+async function loadUserProfileDetails() {
+    if (!currentUser || !currentUser.id) return;
+    
+    try {
+        // Try to fetch full user details from API
+        const response = await fetch(`/api/users/${currentUser.id}`);
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.user) {
+                updateProfileDetails(result.user);
+                return;
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching user details:', error);
+    }
+    
+    // Fallback to currentUser data if API fails
+    updateProfileDetails(currentUser);
+}
+
+function updateProfileDetails(user) {
+    // Update profile detail fields
+    const detailName = document.getElementById('profile-detail-name');
+    const detailEmail = document.getElementById('profile-detail-email');
+    const detailCompany = document.getElementById('profile-detail-company');
+    const detailPhone = document.getElementById('profile-detail-phone');
+    const detailProject = document.getElementById('profile-detail-project');
+    const detailDesignation = document.getElementById('profile-detail-designation');
+    
+    if (detailName) detailName.textContent = user.name || '-';
+    if (detailEmail) detailEmail.textContent = user.email || '-';
+    if (detailCompany) detailCompany.textContent = user.company_name || user.companyName || 'Not specified';
+    if (detailPhone) detailPhone.textContent = user.phone || 'Not provided';
+    
+    // Project Name - above designation
+    if (detailProject) {
+        detailProject.textContent = user.project_name || 'Not specified';
+    }
+    
+    // Designation
+    if (detailDesignation) {
+        if (user.designation) {
+            detailDesignation.textContent = user.designation;
+        } else {
+            detailDesignation.textContent = 'Not specified';
+        }
+    }
+}
+
+function toggleUserProfile() {
+    const menu = document.getElementById('user-profile-menu');
+    if (!menu) return;
+    
+    const isVisible = menu.style.display !== 'none';
+    menu.style.display = isVisible ? 'none' : 'block';
+    
+    // Close menu when clicking outside
+    if (!isVisible) {
+        setTimeout(() => {
+            document.addEventListener('click', closeUserProfileOnOutsideClick, true);
+        }, 0);
+    }
+}
+
+function closeUserProfileOnOutsideClick(event) {
+    const menu = document.getElementById('user-profile-menu');
+    const btn = document.querySelector('.user-profile-btn');
+    
+    if (menu && btn && !menu.contains(event.target) && !btn.contains(event.target)) {
+        menu.style.display = 'none';
+        document.removeEventListener('click', closeUserProfileOnOutsideClick, true);
+    }
+}
+
+// Account Page Functions
+function openAccountPage() {
+    // Close profile dropdown first
+    const menu = document.getElementById('user-profile-menu');
+    if (menu) menu.style.display = 'none';
+    
+    // Load current user data into form
+    loadAccountData();
+    
+    // Open account modal
+    const modal = document.getElementById('account-modal');
+    if (modal) {
+        modal.classList.add('show');
+    }
+}
+
+function closeAccountModal() {
+    const modal = document.getElementById('account-modal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+    const form = document.getElementById('account-form');
+    if (form) form.reset();
+}
+
+async function loadAccountData() {
+    if (!currentUser || !currentUser.id) return;
+    
+    try {
+        // Fetch full user details
+        const response = await fetch(`/api/users/${currentUser.id}`);
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.user) {
+                populateAccountForm(result.user);
+                return;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading account data:', error);
+    }
+    
+    // Fallback to currentUser data
+    populateAccountForm(currentUser);
+}
+
+function populateAccountForm(user) {
+    document.getElementById('account-name').value = user.name || '';
+    document.getElementById('account-email').value = user.email || '';
+    document.getElementById('account-email').disabled = true; // Email cannot be changed
+    document.getElementById('account-company').value = user.company_name || user.companyName || '';
+    document.getElementById('account-phone').value = user.phone || '';
+    document.getElementById('account-project').value = user.project_name || '';
+    document.getElementById('account-address').value = user.address || '';
+    
+    // Set designation if available
+    const designationSelect = document.getElementById('account-designation');
+    if (designationSelect) {
+        designationSelect.value = user.designation || '';
+    }
+}
+
+function setupAccountForm() {
+    const accountForm = document.getElementById('account-form');
+    if (accountForm) {
+        accountForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!currentUser || !currentUser.id) {
+                showNotification('User not found. Please sign in again.', 'error');
+                return;
+            }
+            
+            const updateData = {
+                name: document.getElementById('account-name').value.trim(),
+                company_name: document.getElementById('account-company').value.trim(),
+                phone: document.getElementById('account-phone').value.trim(),
+                designation: document.getElementById('account-designation').value,
+                project_name: document.getElementById('account-project').value.trim() || null,
+                address: document.getElementById('account-address').value.trim() || null
+            };
+            
+            // Validate required fields
+            if (!updateData.name) {
+                showNotification('Name is required', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/users/${currentUser.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updateData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Account updated successfully!', 'success');
+                    
+                    // Update currentUser in localStorage
+                    currentUser.name = updateData.name;
+                    currentUser.companyName = updateData.company_name;
+                    currentUser.company_name = updateData.company_name;
+                    currentUser.phone = updateData.phone;
+                    currentUser.designation = updateData.designation;
+                    currentUser.project_name = updateData.project_name;
+                    currentUser.address = updateData.address;
+                    localStorage.setItem('greenscore-user', JSON.stringify(currentUser));
+                    
+                    // Update profile display
+                    updateProfileDetails({
+                        ...currentUser,
+                        company_name: updateData.company_name,
+                        phone: updateData.phone,
+                        designation: updateData.designation
+                    });
+                    
+                    // Update welcome message
+                    const buyerWelcome = document.getElementById('buyer-welcome');
+                    if (buyerWelcome) {
+                        buyerWelcome.textContent = 
+                            `Welcome, ${updateData.name}! Find quality surplus construction materials at competitive prices`;
+                    }
+                    
+                    // Update profile button name
+                    const profileUserName = document.getElementById('profile-user-name');
+                    if (profileUserName) {
+                        profileUserName.textContent = updateData.name;
+                    }
+                    
+                    // Close modal after a short delay
+                    setTimeout(() => {
+                        closeAccountModal();
+                    }, 1000);
+                } else {
+                    showNotification(result.error || 'Failed to update account', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating account:', error);
+                showNotification('Error updating account. Please try again.', 'error');
+            }
+        });
+    }
 }
 
 // Load categories from API
@@ -268,6 +514,136 @@ function displayMaterials() {
             </div>
         </div>
     `).join('');
+}
+
+// Get cart button HTML for modal view (doesn't close modal)
+function getModalCartButtonHTML(material) {
+    const materialId = material.id;
+    const maxQty = material.qty;
+    const sellerId = material.seller_id || material.sellerId;
+    
+    // Check if item is being edited
+    if (material.is_being_edited) {
+        return `
+            <div class="locked-item-notice" style="background: #fef2f2; color: #dc2626; padding: 8px; border-radius: 4px; text-align: center; font-size: 0.75rem;">
+                <i class="fas fa-lock"></i>
+                Being Updated
+            </div>
+        `;
+    }
+    
+    // Prevent self-buying
+    if (currentUser && currentUser.id === sellerId) {
+        return `
+            <div class="self-item-notice" style="background: #f3f4f6; color: #6b7280; padding: 8px; border-radius: 4px; text-align: center; font-size: 0.75rem;">
+                <i class="fas fa-info-circle"></i>
+                Your Item
+            </div>
+        `;
+    }
+    
+    const cartItem = cart.find(item => item.materialId === materialId);
+    
+    if (cartItem) {
+        // Item is in cart - show quantity controls
+        return `
+            <div class="cart-quantity-controls-modal" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.5rem;">
+                <button onclick="updateCartQuantity('${materialId}', -1); updateModalCartControls('${materialId}');" style="width: 32px; height: 32px; border: none; background: #e5e7eb; color: #374151; border-radius: 6px; cursor: pointer; font-size: 0.875rem; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" onmouseover="this.style.background='#d1d5db'" onmouseout="this.style.background='#e5e7eb'">
+                    <i class="fas fa-minus"></i>
+                </button>
+                <input type="number" 
+                       id="modal-qty-${materialId}"
+                       style="width: 60px; height: 32px; text-align: center; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem; font-weight: 600;"
+                       value="${cartItem.quantity}" 
+                       min="1" 
+                       max="${maxQty}"
+                       onchange="setCartQuantity('${materialId}', this.value, ${maxQty}); updateModalCartControls('${materialId}');">
+                <button onclick="updateCartQuantity('${materialId}', 1); updateModalCartControls('${materialId}');" ${cartItem.quantity >= maxQty ? 'disabled' : ''} style="width: 32px; height: 32px; border: none; background: #10b981; color: white; border-radius: 6px; cursor: pointer; font-size: 0.875rem; display: flex; align-items: center; justify-content: center; transition: background 0.2s; ${cartItem.quantity >= maxQty ? 'opacity: 0.5; cursor: not-allowed;' : ''}" onmouseover="${cartItem.quantity >= maxQty ? '' : "this.style.background='#059669'"} onmouseout="${cartItem.quantity >= maxQty ? '' : "this.style.background='#10b981'"};">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        `;
+    } else {
+        // Item not in cart - show add button
+        return `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="number" 
+                       id="modal-qty-${materialId}"
+                       style="width: 60px; height: 32px; text-align: center; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem; font-weight: 600;"
+                       value="1" 
+                       min="1" 
+                       max="${maxQty}"
+                       placeholder="Qty">
+                <button onclick="addToCartWithQtyFromModal('${materialId}', ${maxQty});" style="flex: 1; height: 32px; padding: 0 0.75rem; font-size: 0.75rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.375rem; transition: all 0.3s; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(59, 130, 246, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(59, 130, 246, 0.3)';">
+                    <i class="fas fa-cart-plus" style="font-size: 0.7rem;"></i>
+                    Add to Cart
+                </button>
+            </div>
+        `;
+    }
+}
+
+// Update cart controls in modal after cart changes
+function updateModalCartControls(materialId) {
+    const material = materials.find(m => m.id === materialId);
+    if (!material) return;
+    
+    const controlsDiv = document.getElementById(`modal-cart-controls-${materialId}`);
+    if (controlsDiv) {
+        controlsDiv.innerHTML = getModalCartButtonHTML(material);
+    }
+}
+
+// Add to cart from modal with quantity
+function addToCartWithQtyFromModal(materialId, maxQty) {
+    const material = materials.find(m => m.id === materialId);
+    if (!material) return;
+    
+    // Check if material is being edited
+    if (material.is_being_edited) {
+        showNotification('This item is currently being updated. Please try again later.', 'error');
+        return;
+    }
+    
+    const qtyInput = document.getElementById(`modal-qty-${materialId}`);
+    const quantity = qtyInput ? parseInt(qtyInput.value) || 1 : 1;
+    
+    if (quantity < 1) {
+        showNotification('Quantity must be at least 1', 'error');
+        return;
+    }
+    
+    if (quantity > maxQty) {
+        showNotification(`Maximum available quantity is ${maxQty}`, 'error');
+        return;
+    }
+    
+    const existingItem = cart.find(item => item.materialId === materialId);
+    
+    if (existingItem) {
+        if (existingItem.quantity + quantity <= maxQty) {
+            existingItem.quantity += quantity;
+        } else {
+            existingItem.quantity = maxQty;
+            showNotification(`Maximum quantity reached. Set to ${maxQty}`, 'warning');
+        }
+    } else {
+        cart.push({
+            materialId: materialId,
+            material: material.material,
+            brand: material.brand,
+            price: material.priceToday || 0,
+            unit: material.unit || 'pcs',
+            maxQty: maxQty,
+            quantity: quantity,
+            sellerId: material.sellerId
+        });
+    }
+    
+    updateCartDisplay();
+    updateModalCartControls(materialId); // Update modal controls
+    saveCart();
+    showNotification(`Added ${quantity} item(s) to cart`, 'success');
 }
 
 // Get cart button HTML based on whether item is in cart
@@ -495,7 +871,7 @@ function showProductModal(materialId) {
     modalTitle.textContent = material.material;
     modalBody.innerHTML = `
         <!-- Full width image on top -->
-        <div class="product-image" style="width: 100%; height: 300px; border-radius: 10px; overflow: hidden; margin-bottom: 1.25rem; background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%); border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+        <div class="product-image" style="width: 100%; height: 400px; border-radius: 10px; overflow: hidden; margin-bottom: 1.25rem; background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%); border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
             ${material.photo ? 
                 `<img src="${material.photo}" alt="${material.material}" style="width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 0.75rem;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                  <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
@@ -521,7 +897,7 @@ function showProductModal(materialId) {
                 
                 <h3 style="font-size: 1.375rem; margin-bottom: 0.5rem; color: #111827; font-weight: 700; line-height: 1.3;">${material.material}</h3>
                 ${material.brand ? `
-                <div style="font-size: 0.8125rem; color: #6b7280; margin-bottom: 1rem; font-weight: 500;">
+                <div style="font-size: 1rem; color: #6b7280; margin-bottom: 1rem; font-weight: 600;">
                     ${material.brand}
                 </div>` : ''}
                 
@@ -533,7 +909,7 @@ function showProductModal(materialId) {
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
                             <div style="color: #64748b; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Available Qty</div>
-                            <div style="font-weight: 700; color: #0f172a; font-size: 0.875rem;">${material.qty} <span style="font-size: 0.75rem; color: #64748b;">${material.unit || 'pcs'}</span></div>
+                            <div style="font-weight: 700; color: #0f172a; font-size: 1.125rem;">${material.qty} <span style="font-size: 0.875rem; color: #64748b;">${material.unit || 'pcs'}</span></div>
                         </div>
                         ${material.dimensions ? `
                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
@@ -608,15 +984,14 @@ function showProductModal(materialId) {
                 </div>
 
                 ${!isAdmin ? `
-                    <button class="btn btn-primary" onclick="addToCart('${material.id}'); closeModal();" style="width: 100%; padding: 0.875rem; font-size: 0.875rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.3s; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4); text-transform: uppercase; letter-spacing: 0.05em;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.5)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(59, 130, 246, 0.4)';">
-                        <i class="fas fa-cart-plus" style="font-size: 0.75rem;"></i>
-                        Add to Cart
-                    </button>
+                    <div id="modal-cart-controls-${material.id}" style="width: 100%;">
+                        ${getModalCartButtonHTML(material)}
+                    </div>
                 ` : ''}
 
                 ${isAdmin ? `
-                    <button class="btn btn-danger" onclick="closeModal(); deleteMaterial('${material.id}')" style="width: 100%; padding: 0.875rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.5rem; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.875rem;">
-                        <i class="fas fa-trash" style="font-size: 0.7rem;"></i>
+                    <button class="btn btn-danger" onclick="closeModal(); deleteMaterial('${material.id}')" style="width: 100%; padding: 0.625rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.5rem; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3); font-size: 0.75rem;">
+                        <i class="fas fa-trash" style="font-size: 0.65rem;"></i>
                         Delete Material
                     </button>
                 ` : ''}
@@ -726,10 +1101,17 @@ function addToCartWithQty(materialId, maxQty) {
 
 // Set cart quantity directly from input
 function setCartQuantity(materialId, value, maxQty) {
+    // Check if modal is open
+    const modal = document.getElementById('product-modal');
+    const isModalOpen = modal && modal.classList.contains('show');
     const quantity = parseInt(value) || 1;
     
     if (quantity < 1) {
         removeFromCart(materialId);
+        // Update modal controls if modal is open
+        if (isModalOpen) {
+            updateModalCartControls(materialId);
+        }
         return;
     }
     
@@ -742,6 +1124,11 @@ function setCartQuantity(materialId, value, maxQty) {
                 input.value = maxQty;
             }
         });
+        // Also reset modal input if exists
+        const modalInput = document.getElementById(`modal-qty-${materialId}`);
+        if (modalInput) {
+            modalInput.value = maxQty;
+        }
         updateCartQuantity(materialId, maxQty - cart.find(item => item.materialId === materialId).quantity);
         return;
     }
@@ -752,6 +1139,11 @@ function setCartQuantity(materialId, value, maxQty) {
         updateCartDisplay();
         displayMaterials();
         saveCart();
+        
+        // Update modal controls if modal is open
+        if (isModalOpen) {
+            updateModalCartControls(materialId);
+        }
     }
 }
 
@@ -820,6 +1212,9 @@ function updateCartDisplay() {
 
 // Update cart item quantity
 function updateCartQuantity(materialId, change) {
+    // Check if modal is open for this material
+    const modal = document.getElementById('product-modal');
+    const isModalOpen = modal && modal.classList.contains('show');
     const item = cart.find(item => item.materialId === materialId);
     if (!item) return;
     
@@ -839,6 +1234,11 @@ function updateCartQuantity(materialId, change) {
     updateCartDisplay();
     displayMaterials(); // Refresh product display to update quantity controls
     saveCart();
+    
+    // Update modal controls if modal is open
+    if (isModalOpen) {
+        updateModalCartControls(materialId);
+    }
 }
 
 // Remove from cart
@@ -904,6 +1304,15 @@ function checkout() {
     checkoutSubtotal.textContent = formatIndianCurrency(subtotal);
     checkoutPlatformFee.textContent = formatIndianCurrency(platformFee);
     checkoutTotal.textContent = formatIndianCurrency(total);
+    
+    // Auto-fill checkout form with user data
+    if (currentUser) {
+        document.getElementById('company-name').value = currentUser.company_name || currentUser.companyName || '';
+        document.getElementById('contact-person').value = currentUser.name || '';
+        document.getElementById('email').value = currentUser.email || '';
+        document.getElementById('phone').value = currentUser.phone || '';
+        document.getElementById('delivery-address').value = currentUser.address || '';
+    }
     
     modal.classList.add('show');
 }
@@ -1302,6 +1711,520 @@ async function clearAllNotifications() {
     }
 }
 
+// Profile Page Functions
+let profileOrders = [];
+let profileOrderRequests = [];
+
+function openProfilePage() {
+    // Close profile dropdown first
+    const menu = document.getElementById('user-profile-menu');
+    if (menu) menu.style.display = 'none';
+    
+    // Load profile data
+    loadProfileData();
+    
+    // Open profile modal
+    const modal = document.getElementById('profile-page-modal');
+    if (modal) {
+        modal.classList.add('show');
+        // Switch to overview tab by default
+        switchProfileTab('overview');
+    }
+}
+
+function closeProfilePage() {
+    const modal = document.getElementById('profile-page-modal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+async function loadProfileData() {
+    if (!currentUser || !currentUser.id) return;
+    
+    try {
+        // Load user details
+        const userResponse = await fetch(`/api/users/${currentUser.id}`);
+        if (userResponse.ok) {
+            const userResult = await userResponse.json();
+            if (userResult.success && userResult.user) {
+                populateProfilePage(userResult.user);
+            }
+        }
+        
+        // Load orders
+        const ordersResponse = await fetch(`/api/buyer/orders?userId=${currentUser.id}`);
+        if (ordersResponse.ok) {
+            const ordersResult = await ordersResponse.json();
+            if (ordersResult.success) {
+                profileOrders = ordersResult.orders || [];
+                displayProfileOrders();
+                updateProfileStats();
+            }
+        }
+        
+        // Load order requests
+        const requestsResponse = await fetch(`/api/buyer/order-requests?userId=${currentUser.id}`);
+        if (requestsResponse.ok) {
+            const requestsResult = await requestsResponse.json();
+            if (requestsResult.success) {
+                profileOrderRequests = requestsResult.requests || [];
+                displayProfileRequests();
+                updateProfileStats();
+            }
+        }
+    } catch (error) {
+        console.error('Error loading profile data:', error);
+    }
+}
+
+function populateProfilePage(user) {
+    document.getElementById('profile-page-name').textContent = user.name || 'User';
+    document.getElementById('profile-page-email').textContent = user.email || '-';
+    document.getElementById('profile-page-company').textContent = user.company_name || user.companyName || 'Not specified';
+    document.getElementById('profile-page-phone').textContent = user.phone || 'Not provided';
+    document.getElementById('profile-page-designation').textContent = user.designation || 'Not specified';
+    document.getElementById('profile-page-project').textContent = user.project_name || 'Not specified';
+    document.getElementById('profile-page-address').textContent = user.address || 'Not provided';
+}
+
+function updateProfileStats() {
+    const totalOrders = profileOrders.length;
+    const completedOrders = profileOrders.filter(o => o.status === 'completed' || o.status === 'delivered').length;
+    const pendingRequests = profileOrderRequests.filter(r => r.status === 'pending').length;
+    
+    document.getElementById('profile-total-orders').textContent = totalOrders;
+    document.getElementById('profile-completed-orders').textContent = completedOrders;
+    document.getElementById('profile-pending-requests').textContent = pendingRequests;
+    
+    // Update tab badges
+    const ordersBadge = document.getElementById('orders-count-badge');
+    const requestsBadge = document.getElementById('requests-count-badge');
+    
+    if (ordersBadge) {
+        if (totalOrders > 0) {
+            ordersBadge.textContent = totalOrders;
+            ordersBadge.style.display = 'inline-block';
+        } else {
+            ordersBadge.style.display = 'none';
+        }
+    }
+    
+    if (requestsBadge) {
+        if (pendingRequests > 0) {
+            requestsBadge.textContent = pendingRequests;
+            requestsBadge.style.display = 'inline-block';
+        } else {
+            requestsBadge.style.display = 'none';
+        }
+    }
+}
+
+function displayProfileOrders() {
+    const ordersList = document.getElementById('profile-orders-list');
+    const recentOrders = document.getElementById('profile-recent-orders');
+    
+    if (!ordersList) return;
+    
+    if (profileOrders.length === 0) {
+        ordersList.innerHTML = `
+            <div style="text-align: center; padding: 3rem; color: #6b7280;">
+                <i class="fas fa-shopping-bag" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                <p style="font-size: 1.1rem; font-weight: 500;">No orders yet</p>
+                <p style="margin-top: 0.5rem;">Start shopping to see your orders here</p>
+            </div>
+        `;
+        
+        if (recentOrders) {
+            recentOrders.innerHTML = `
+                <div style="text-align: center; padding: 2rem; color: #6b7280;">
+                    <i class="fas fa-shopping-bag" style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5;"></i>
+                    <p>No recent orders</p>
+                </div>
+            `;
+        }
+        return;
+    }
+    
+    // Display all orders
+    ordersList.innerHTML = profileOrders.map(order => {
+        // Parse photo
+        let photos = [];
+        if (order.photo) {
+            try {
+                photos = JSON.parse(order.photo);
+                if (!Array.isArray(photos)) photos = [order.photo];
+            } catch {
+                photos = [order.photo];
+            }
+        }
+        const firstPhoto = photos.length > 0 ? photos[0] : null;
+        
+        return `
+            <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="display: grid; grid-template-columns: 150px 1fr auto; gap: 1.5rem; align-items: start;">
+                    ${firstPhoto ? `
+                    <div style="width: 150px; height: 150px; border-radius: 8px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e7eb;">
+                        <img src="${firstPhoto}" alt="${order.material_name}" style="width: 100%; height: 100%; object-fit: contain; padding: 0.5rem;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                            <i class="fas fa-image" style="font-size:1.5rem; opacity: 0.5;"></i>
+                        </div>
+                    </div>
+                    ` : `
+                    <div style="width: 150px; height: 150px; border-radius: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af;">
+                        <i class="fas fa-image" style="font-size:1.5rem; opacity: 0.5;"></i>
+                    </div>
+                    `}
+                    
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: start; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem 0; font-size: 1.125rem; font-weight: 700; color: #1f2937;">${order.material_name}</h4>
+                                ${order.brand ? `<p style="margin: 0 0 0.5rem 0; color: #6b7280; font-size: 0.875rem;">${order.brand}</p>` : ''}
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                                    ${order.category ? `<span style="padding: 0.25rem 0.5rem; background: #dbeafe; color: #1e40af; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;">${order.category}</span>` : ''}
+                                    ${order.condition ? `<span style="padding: 0.25rem 0.5rem; background: #fef3c7; color: #92400e; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;">${order.condition.charAt(0).toUpperCase() + order.condition.slice(1)}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Order ID</div>
+                                <div style="font-size: 0.875rem; font-weight: 500; font-family: monospace;">${order.id.substring(0, 12)}...</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Quantity</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${order.quantity} ${order.unit || 'units'}</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Seller</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${order.seller_name}${order.seller_company ? ` (${order.seller_company})` : ''}</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Order Date</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${formatDateTime(order.created_at)}</div>
+                            </div>
+                        </div>
+                        
+                        ${order.shipping_address ? `
+                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: #ecfdf5; border-radius: 8px; border-left: 3px solid #10b981;">
+                            <div style="color: #065f46; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Shipping Address</div>
+                            <div style="color: #047857; font-size: 0.875rem; line-height: 1.5;">${order.shipping_address}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div style="text-align: right; min-width: 150px;">
+                        <div style="margin-bottom: 0.75rem;">
+                            <span class="status-badge status-${order.status}" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                                ${order.status.toUpperCase()}
+                            </span>
+                        </div>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: #059669; margin-bottom: 0.5rem;">
+                            ${formatIndianCurrency(order.total_amount)}
+                        </div>
+                        <div style="font-size: 0.875rem; color: #6b7280;">
+                            <div>Unit: ${formatIndianCurrency(order.unit_price || order.current_price || 0)}</div>
+                            <div style="margin-top: 0.25rem;">Platform Fee: ${formatIndianCurrency(order.platform_fee || 0)}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Display recent orders (first 3)
+    if (recentOrders) {
+        const recentOrdersList = profileOrders.slice(0, 3);
+        if (recentOrdersList.length > 0) {
+            recentOrders.innerHTML = recentOrdersList.map(order => {
+                let photos = [];
+                if (order.photo) {
+                    try {
+                        photos = JSON.parse(order.photo);
+                        if (!Array.isArray(photos)) photos = [order.photo];
+                    } catch {
+                        photos = [order.photo];
+                    }
+                }
+                const firstPhoto = photos.length > 0 ? photos[0] : null;
+                
+                return `
+                    <div style="display: flex; gap: 1rem; padding: 1rem; border-bottom: 1px solid #e5e7eb; align-items: center;">
+                        ${firstPhoto ? `
+                        <div style="width: 80px; height: 80px; border-radius: 8px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e7eb; flex-shrink: 0;">
+                            <img src="${firstPhoto}" alt="${order.material_name}" style="width: 100%; height: 100%; object-fit: contain; padding: 0.25rem;" onerror="this.style.display='none';">
+                        </div>
+                        ` : `
+                        <div style="width: 80px; height: 80px; border-radius: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; flex-shrink: 0; display:flex; align-items:center; justify-content:center; color:#9ca3af;">
+                            <i class="fas fa-image" style="font-size:1.25rem; opacity: 0.5;"></i>
+                        </div>
+                        `}
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; margin-bottom: 0.25rem;">${order.material_name}</div>
+                            <div style="font-size: 0.875rem; color: #6b7280;">${order.quantity} ${order.unit || 'units'} • ${formatDateTime(order.created_at)}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-weight: 700; color: #059669; margin-bottom: 0.25rem;">${formatIndianCurrency(order.total_amount)}</div>
+                            <span class="status-badge status-${order.status}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                                ${order.status.toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+}
+
+function displayProfileRequests() {
+    const requestsList = document.getElementById('profile-requests-list');
+    if (!requestsList) return;
+    
+    if (profileOrderRequests.length === 0) {
+        requestsList.innerHTML = `
+            <div style="text-align: center; padding: 3rem; color: #6b7280;">
+                <i class="fas fa-clock" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                <p style="font-size: 1.1rem; font-weight: 500;">No order requests</p>
+                <p style="margin-top: 0.5rem;">Your order requests will appear here</p>
+            </div>
+        `;
+        return;
+    }
+    
+    requestsList.innerHTML = profileOrderRequests.map(request => {
+        // Parse photo
+        let photos = [];
+        if (request.photo) {
+            try {
+                photos = JSON.parse(request.photo);
+                if (!Array.isArray(photos)) photos = [request.photo];
+            } catch {
+                photos = [request.photo];
+            }
+        }
+        const firstPhoto = photos.length > 0 ? photos[0] : null;
+        
+        return `
+            <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="display: grid; grid-template-columns: 150px 1fr auto; gap: 1.5rem; align-items: start;">
+                    ${firstPhoto ? `
+                    <div style="width: 150px; height: 150px; border-radius: 8px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e7eb;">
+                        <img src="${firstPhoto}" alt="${request.material_name}" style="width: 100%; height: 100%; object-fit: contain; padding: 0.5rem;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                            <i class="fas fa-image" style="font-size:1.5rem; opacity: 0.5;"></i>
+                        </div>
+                    </div>
+                    ` : `
+                    <div style="width: 150px; height: 150px; border-radius: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af;">
+                        <i class="fas fa-image" style="font-size:1.5rem; opacity: 0.5;"></i>
+                    </div>
+                    `}
+                    
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: start; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem 0; font-size: 1.125rem; font-weight: 700; color: #1f2937;">${request.material_name}</h4>
+                                ${request.brand ? `<p style="margin: 0 0 0.5rem 0; color: #6b7280; font-size: 0.875rem;">${request.brand}</p>` : ''}
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                                    ${request.category ? `<span style="padding: 0.25rem 0.5rem; background: #dbeafe; color: #1e40af; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;">${request.category}</span>` : ''}
+                                    ${request.condition ? `<span style="padding: 0.25rem 0.5rem; background: #fef3c7; color: #92400e; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;">${request.condition.charAt(0).toUpperCase() + request.condition.slice(1)}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Request ID</div>
+                                <div style="font-size: 0.875rem; font-weight: 500; font-family: monospace;">${request.id.substring(0, 12)}...</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Quantity</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${request.quantity} ${request.unit || 'units'}</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Seller</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${request.seller_name}${request.seller_company ? ` (${request.seller_company})` : ''}</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Requested On</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${formatDateTime(request.created_at)}</div>
+                            </div>
+                        </div>
+                        
+                        ${request.delivery_address ? `
+                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: #ecfdf5; border-radius: 8px; border-left: 3px solid #10b981;">
+                            <div style="color: #065f46; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Delivery Address</div>
+                            <div style="color: #047857; font-size: 0.875rem; line-height: 1.5;">${request.delivery_address}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div style="text-align: right; min-width: 150px;">
+                        <div style="margin-bottom: 0.75rem;">
+                            <span class="status-badge status-${request.status}" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                                ${request.status.toUpperCase().replace('_', ' ')}
+                            </span>
+                        </div>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: #059669; margin-bottom: 0.5rem;">
+                            ${formatIndianCurrency(request.total_amount)}
+                        </div>
+                        <div style="font-size: 0.875rem; color: #6b7280;">
+                            Unit: ${formatIndianCurrency(request.unit_price || request.current_price || 0)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function switchProfileTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.profile-tab-content').forEach(tab => {
+        tab.style.display = 'none';
+        tab.classList.remove('active');
+    });
+    
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.profile-tab').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Show selected tab
+    const selectedTab = document.getElementById(`profile-${tabName}-tab`);
+    const selectedBtn = document.querySelector(`.profile-tab[data-tab="${tabName}"]`);
+    
+    if (selectedTab) {
+        selectedTab.style.display = 'block';
+        selectedTab.classList.add('active');
+    }
+    
+    if (selectedBtn) {
+        selectedBtn.classList.add('active');
+    }
+    
+    // Load data for specific tabs
+    if (tabName === 'orders') {
+        displayProfileOrders();
+    } else if (tabName === 'requests') {
+        displayProfileRequests();
+    } else if (tabName === 'account') {
+        loadProfileAccountForm();
+    }
+}
+
+function loadProfileAccountForm() {
+    if (!currentUser || !currentUser.id) return;
+    
+    // Fetch latest user data
+    fetch(`/api/users/${currentUser.id}`)
+        .then(response => response.json())
+        .then(result => {
+            if (result.success && result.user) {
+                const user = result.user;
+                document.getElementById('profile-account-name').value = user.name || '';
+                document.getElementById('profile-account-email').value = user.email || '';
+                document.getElementById('profile-account-company').value = user.company_name || user.companyName || '';
+                document.getElementById('profile-account-phone').value = user.phone || '';
+                document.getElementById('profile-account-project').value = user.project_name || '';
+                document.getElementById('profile-account-address').value = user.address || '';
+                document.getElementById('profile-account-designation').value = user.designation || '';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading account data:', error);
+            // Fallback to currentUser
+            if (currentUser) {
+                document.getElementById('profile-account-name').value = currentUser.name || '';
+                document.getElementById('profile-account-email').value = currentUser.email || '';
+                document.getElementById('profile-account-company').value = currentUser.company_name || currentUser.companyName || '';
+                document.getElementById('profile-account-phone').value = currentUser.phone || '';
+                document.getElementById('profile-account-project').value = currentUser.project_name || '';
+                document.getElementById('profile-account-address').value = currentUser.address || '';
+                document.getElementById('profile-account-designation').value = currentUser.designation || '';
+            }
+        });
+}
+
+function setupProfileAccountForm() {
+    const form = document.getElementById('profile-account-form');
+    if (!form) return;
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        if (!currentUser || !currentUser.id) {
+            showNotification('User not found. Please sign in again.', 'error');
+            return;
+        }
+        
+        const updateData = {
+            name: document.getElementById('profile-account-name').value.trim(),
+            company_name: document.getElementById('profile-account-company').value.trim(),
+            phone: document.getElementById('profile-account-phone').value.trim(),
+            designation: document.getElementById('profile-account-designation').value,
+            project_name: document.getElementById('profile-account-project').value.trim() || null,
+            address: document.getElementById('profile-account-address').value.trim() || null
+        };
+        
+        // Validate required fields
+        if (!updateData.name) {
+            showNotification('Name is required', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/users/${currentUser.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updateData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showNotification('Account updated successfully!', 'success');
+                
+                // Update currentUser in localStorage
+                currentUser.name = updateData.name;
+                currentUser.companyName = updateData.company_name;
+                currentUser.company_name = updateData.company_name;
+                currentUser.phone = updateData.phone;
+                currentUser.designation = updateData.designation;
+                currentUser.project_name = updateData.project_name;
+                currentUser.address = updateData.address;
+                localStorage.setItem('greenscore-user', JSON.stringify(currentUser));
+                
+                // Update profile display
+                updateProfileDetails({
+                    ...currentUser,
+                    company_name: updateData.company_name,
+                    phone: updateData.phone,
+                    designation: updateData.designation
+                });
+                
+                // Reload profile page data to reflect changes
+                populateProfilePage(currentUser);
+                
+                // Update profile button name
+                const profileUserName = document.getElementById('profile-user-name');
+                if (profileUserName) {
+                    profileUserName.textContent = updateData.name;
+                }
+            } else {
+                showNotification(result.error || 'Failed to update account', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating account:', error);
+            showNotification('Error updating account. Please try again.', 'error');
+        }
+    });
+}
+
 window.checkout = checkout;
 window.closeModal = closeModal;
 window.closeCheckoutModal = closeCheckoutModal;
@@ -1313,3 +2236,6 @@ window.signOut = signOut;
 window.refreshMarketplace = refreshMarketplace;
 window.manualRefresh = manualRefresh;
 window.deleteMaterial = deleteMaterial;
+window.openProfilePage = openProfilePage;
+window.closeProfilePage = closeProfilePage;
+window.switchProfileTab = switchProfileTab;

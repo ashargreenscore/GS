@@ -28,6 +28,7 @@ class Database {
         name TEXT NOT NULL,
         company_name TEXT,
         phone TEXT,
+        designation TEXT,
         user_type TEXT NOT NULL, -- 'seller', 'buyer', 'admin'
         verification_status TEXT DEFAULT 'pending',
         is_active BOOLEAN DEFAULT 1,
@@ -36,22 +37,40 @@ class Database {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
-
-    // Create default admin user if not exists (password: admin123)
-    this.db.get('SELECT id FROM users WHERE user_type = "admin"', [], (err, row) => {
-      if (!err && !row) {
-        this.db.run(`
-          INSERT INTO users (id, email, password_hash, name, user_type, verification_status, company_name)
-          VALUES ('admin-default', 'admin@greenscore.com', '$2b$10$HTv86gjRUEzPswiVvRt2C.ZRXj17Khej34qyTBz3XHo9MCuCpnyuS', 'System Admin', 'admin', 'verified', 'GreenScore System')
-        `, (err) => {
-          if (err) {
-            console.error('Error creating admin user:', err);
-          } else {
-            console.log('✅ Default admin user created: admin@greenscore.com / admin123');
-          }
-        });
+    
+    // Add designation column if it doesn't exist (for existing databases)
+    this.db.run(`ALTER TABLE users ADD COLUMN designation TEXT`, (err) => {
+      if (err && !err.message.includes('duplicate column')) {
+        console.error('Error adding designation column:', err);
       }
     });
+    
+    // Add default_project_id column if it doesn't exist (for existing databases)
+    this.db.run(`ALTER TABLE users ADD COLUMN default_project_id TEXT`, (err) => {
+      if (err && !err.message.includes('duplicate column')) {
+        console.error('Error adding default_project_id column:', err);
+      }
+    });
+    
+    // Add project_name column if it doesn't exist (for existing databases)
+    this.db.run(`ALTER TABLE users ADD COLUMN project_name TEXT`, (err) => {
+      if (err && !err.message.includes('duplicate column')) {
+        console.error('Error adding project_name column:', err);
+      }
+    });
+    
+    // Add address column if it doesn't exist (for existing databases)
+    this.db.run(`ALTER TABLE users ADD COLUMN address TEXT`, (err) => {
+      if (err && !err.message.includes('duplicate column')) {
+        console.error('Error adding address column:', err);
+      }
+    });
+
+    // Create or update default admin user (password: admin123)
+    // Use a delay to ensure table creation is complete first
+    setTimeout(() => {
+      this.ensureAdminUser();
+    }, 500);
 
     // Projects table
     this.db.run(`
@@ -145,7 +164,7 @@ class Database {
         unit_price REAL NOT NULL,
         total_amount REAL NOT NULL,
         platform_fee REAL NOT NULL,
-        status TEXT DEFAULT 'confirmed', -- confirmed, shipped, delivered, completed
+        status TEXT DEFAULT 'approved', -- approved, shipped, delivered, completed
         shipping_address TEXT,
         delivery_notes TEXT,
         tracking_number TEXT,
@@ -279,6 +298,58 @@ class Database {
     });
   }
 
+  ensureAdminUser() {
+    // Ensure the password hash is correct for "admin123"
+    const adminPasswordHash = bcrypt.hashSync('admin123', 10);
+    
+    this.db.get('SELECT id, password_hash FROM users WHERE email = ?', ['admin@greenscore.com'], (err, row) => {
+      if (err) {
+        console.error('❌ Error checking admin user:', err);
+        return;
+      }
+      
+      if (!row) {
+        // Admin user doesn't exist, create it
+        this.db.run(`
+          INSERT INTO users (id, email, password_hash, name, user_type, verification_status, company_name)
+          VALUES ('admin-default', 'admin@greenscore.com', ?, 'System Admin', 'admin', 'verified', 'GreenScore System')
+        `, [adminPasswordHash], (err) => {
+          if (err) {
+            console.error('❌ Error creating admin user:', err);
+          } else {
+            console.log('✅ Default admin user created: admin@greenscore.com / admin123');
+            // Verify the password works
+            const testVerify = bcrypt.compareSync('admin123', adminPasswordHash);
+            console.log('🔑 Password verification test:', testVerify ? '✅ PASSED' : '❌ FAILED');
+          }
+        });
+      } else {
+        // Admin user exists, verify and update password hash if needed
+        const currentHashWorks = bcrypt.compareSync('admin123', row.password_hash);
+        
+        if (!currentHashWorks) {
+          // Current hash doesn't work, update it
+          console.log('🔄 Updating admin user password hash...');
+          this.db.run(`
+            UPDATE users 
+            SET password_hash = ?, user_type = 'admin', verification_status = 'verified'
+            WHERE email = 'admin@greenscore.com'
+          `, [adminPasswordHash], (err) => {
+            if (err) {
+              console.error('❌ Error updating admin user:', err);
+            } else {
+              console.log('✅ Admin user password hash updated: admin@greenscore.com / admin123');
+              const testVerify = bcrypt.compareSync('admin123', adminPasswordHash);
+              console.log('🔑 Password verification test:', testVerify ? '✅ PASSED' : '❌ FAILED');
+            }
+          });
+        } else {
+          console.log('✅ Admin user exists and password is correct: admin@greenscore.com / admin123');
+        }
+      }
+    });
+  }
+
   async findUserByEmail(email) {
     return new Promise((resolve, reject) => {
       this.db.get('SELECT * FROM users WHERE email = ?', [email], (err, row) => {
@@ -368,6 +439,18 @@ class Database {
     });
   }
 
+  async getProjectById(projectId) {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT * FROM projects WHERE id = ?', [projectId], (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
+    });
+  }
+
   // Generate unique listing ID
   generateListingId() {
     const timestamp = Date.now().toString(36);
@@ -407,25 +490,32 @@ class Database {
   }
 
   async getMaterialsBySeller(sellerId, filters = {}) {
-    let query = 'SELECT * FROM materials WHERE seller_id = ?';
+    let query = `
+      SELECT m.*, 
+             p.name as project_name,
+             p.location as project_location
+      FROM materials m
+      LEFT JOIN projects p ON m.project_id = p.id
+      WHERE m.seller_id = ?
+    `;
     let params = [sellerId];
 
     if (filters.projectId && filters.projectId !== 'all') {
-      query += ' AND project_id = ?';
+      query += ' AND m.project_id = ?';
       params.push(filters.projectId);
     }
 
     if (filters.inventoryType && filters.inventoryType !== 'all') {
-      query += ' AND inventory_type = ?';
+      query += ' AND m.inventory_type = ?';
       params.push(filters.inventoryType);
     }
 
     if (filters.listingType && filters.listingType !== 'all') {
-      query += ' AND listing_type = ?';
+      query += ' AND m.listing_type = ?';
       params.push(filters.listingType);
     }
 
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY m.created_at DESC';
 
     return new Promise((resolve, reject) => {
       this.db.all(query, params, (err, rows) => {
@@ -433,8 +523,10 @@ class Database {
           reject(err);
         } else {
           // Convert database fields to frontend-compatible names
+          // Also normalize categories (e.g., "Tile" → "Tiles")
           const materials = rows.map(row => ({
             ...row,
+            category: this.normalizeCategory(row.category),  // Normalize category
             qty: row.quantity,
             projectId: row.project_id,
             priceToday: row.price_today,
@@ -444,6 +536,9 @@ class Database {
             listingType: row.listing_type,
             acquisitionType: row.acquisition_type,
             specsPhoto: row.specs_photo,
+            location_details: row.location_details,  // Keep location_details
+            project_name: row.project_name,  // Add project name
+            project_location: row.project_location,  // Add project location
             is_being_edited: row.is_being_edited,
             createdAt: row.created_at
           }));
@@ -451,6 +546,78 @@ class Database {
         }
       });
     });
+  }
+
+  // Normalize category name to match frontend categories (handles "Tile" → "Tiles", etc.)
+  normalizeCategory(category) {
+    if (!category) return 'Other';
+    const normalized = category.toString().trim();
+    const upper = normalized.toUpperCase();
+    
+    const frontendCategories = [
+      'Doors', 'Tiles', 'Handles & Hardware', 'Toilets & Sanitary',
+      'Windows', 'Flooring', 'Lighting', 'Paint & Finishes',
+      'Plumbing', 'Electrical', 'Furniture', 'Marbles', 'Other'
+    ];
+    
+    // Exact match
+    if (frontendCategories.includes(normalized)) {
+      return normalized;
+    }
+    
+    // Variations mapping (including singular/plural)
+    const variations = {
+      'TILE': 'Tiles',           // singular → plural (critical fix)
+      'TILES': 'Tiles',
+      'HARDWARE': 'Handles & Hardware',
+      'HANDLES': 'Handles & Hardware',
+      'HANDLE': 'Handles & Hardware',
+      'SANITARY': 'Toilets & Sanitary',
+      'TOILET': 'Toilets & Sanitary',
+      'TOILETS': 'Toilets & Sanitary',
+      'BATHROOM': 'Toilets & Sanitary',
+      'LIGHTS': 'Lighting',
+      'LIGHT': 'Lighting',
+      'FAN': 'Lighting',
+      'FANS': 'Lighting',
+      'WINDOW': 'Windows',
+      'WINDOWS': 'Windows',
+      'FLOOR': 'Flooring',
+      'FLOORS': 'Flooring',
+      'FLOORING': 'Flooring',
+      'PAINT': 'Paint & Finishes',
+      'FINISHES': 'Paint & Finishes',
+      'FINISH': 'Paint & Finishes',
+      'PLUMB': 'Plumbing',
+      'PLUMBING': 'Plumbing',
+      'ELECTRIC': 'Electrical',
+      'ELECTRICAL': 'Electrical',
+      'DOOR': 'Doors',
+      'DOORS': 'Doors',
+      'FURNITURE': 'Furniture',
+      'MARBLE': 'Marbles',
+      'MARBLES': 'Marbles'
+    };
+    
+    if (variations[upper]) {
+      return variations[upper];
+    }
+    
+    // Partial matching (catches both "Tile" and "Tiles")
+    if (upper.includes('TILE')) return 'Tiles';
+    if (upper.includes('HARDWARE') || upper.includes('HANDLE')) return 'Handles & Hardware';
+    if (upper.includes('SANITARY') || upper.includes('TOILET') || upper.includes('BATH')) return 'Toilets & Sanitary';
+    if (upper.includes('LIGHT') || upper.includes('LAMP') || upper.includes('FAN')) return 'Lighting';
+    if (upper.includes('WINDOW')) return 'Windows';
+    if (upper.includes('FLOOR')) return 'Flooring';
+    if (upper.includes('PAINT') || upper.includes('FINISH')) return 'Paint & Finishes';
+    if (upper.includes('PLUMB')) return 'Plumbing';
+    if (upper.includes('ELECTRIC')) return 'Electrical';
+    if (upper.includes('DOOR')) return 'Doors';
+    if (upper.includes('FURNITURE')) return 'Furniture';
+    if (upper.includes('MARBLE')) return 'Marbles';
+    
+    return 'Other';
   }
 
   async getMaterialsForBuyers(filters = {}) {
@@ -483,11 +650,12 @@ class Database {
           reject(err);
         } else {
           // Convert quantity back to qty and include seller info for notifications
+          // Also normalize categories (e.g., "Tile" → "Tiles")
           const materials = rows.map(row => ({
             id: row.id,
             material: row.material,
             brand: row.brand,
-            category: row.category,
+            category: this.normalizeCategory(row.category),  // Normalize category here
             condition: row.condition,
             qty: row.quantity,
             unit: row.unit,
@@ -1134,6 +1302,14 @@ class Database {
           m.price_today as current_price,
           m.quantity as available_qty,
           m.seller_id,
+          m.brand,
+          m.category,
+          m.condition,
+          m.specs,
+          m.photo,
+          m.dimensions,
+          m.weight,
+          m.mrp,
           u.name as buyer_name
         FROM order_requests r
         JOIN materials m ON r.material_id = m.id
@@ -1500,6 +1676,15 @@ class Database {
           m.material as material_name,
           m.listing_id,
           m.unit,
+          m.brand,
+          m.category,
+          m.condition,
+          m.specs,
+          m.photo,
+          m.dimensions,
+          m.weight,
+          m.mrp,
+          m.price_today as current_price,
           u.name as buyer_name,
           u.company_name as buyer_company
         FROM orders o
@@ -1514,6 +1699,91 @@ class Database {
           reject(err);
         } else {
           resolve(rows);
+        }
+      });
+    });
+  }
+
+  async getOrdersByBuyer(buyerId) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT 
+          o.*,
+          m.material as material_name,
+          m.listing_id,
+          m.unit,
+          m.brand,
+          m.category,
+          m.condition,
+          m.specs,
+          m.photo,
+          m.dimensions,
+          m.weight,
+          m.mrp,
+          m.price_today as current_price,
+          u.name as seller_name,
+          u.company_name as seller_company,
+          u.email as seller_email,
+          u.phone as seller_phone
+        FROM orders o
+        JOIN materials m ON o.material_id = m.id
+        JOIN users u ON o.seller_id = u.id
+        WHERE o.buyer_id = ?
+        ORDER BY o.created_at DESC
+      `;
+      
+      this.db.all(query, [buyerId], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          // Normalize categories
+          const normalizedRows = rows.map(row => ({
+            ...row,
+            category: this.normalizeCategory(row.category)
+          }));
+          resolve(normalizedRows);
+        }
+      });
+    });
+  }
+
+  async getOrderRequestsByBuyer(buyerId) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT 
+          r.*,
+          m.material as material_name,
+          m.listing_id,
+          m.unit,
+          m.brand,
+          m.category,
+          m.condition,
+          m.specs,
+          m.photo,
+          m.dimensions,
+          m.weight,
+          m.mrp,
+          m.price_today as current_price,
+          u.name as seller_name,
+          u.company_name as seller_company,
+          u.email as seller_email
+        FROM order_requests r
+        JOIN materials m ON r.material_id = m.id
+        JOIN users u ON r.seller_id = u.id
+        WHERE r.buyer_id = ?
+        ORDER BY r.created_at DESC
+      `;
+      
+      this.db.all(query, [buyerId], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          // Normalize categories
+          const normalizedRows = rows.map(row => ({
+            ...row,
+            category: this.normalizeCategory(row.category)
+          }));
+          resolve(normalizedRows);
         }
       });
     });
@@ -1630,7 +1900,12 @@ class Database {
         if (err) {
           reject(err);
         } else {
-          resolve(rows);
+          // Normalize categories for all materials (e.g., "Tile" → "Tiles")
+          const normalizedRows = rows.map(row => ({
+            ...row,
+            category: this.normalizeCategory(row.category)
+          }));
+          resolve(normalizedRows);
         }
       });
     });
@@ -1643,10 +1918,24 @@ class Database {
           r.*,
           m.material as material_name,
           m.listing_id,
+          m.brand,
+          m.category,
+          m.condition,
+          m.specs,
+          m.photo,
+          m.dimensions,
+          m.weight,
+          m.mrp,
+          m.price_today as current_price,
+          m.unit,
+          m.quantity as available_quantity,
           u_buyer.name as buyer_name,
           u_buyer.company_name as buyer_company,
+          u_buyer.email as buyer_email,
+          u_buyer.phone as buyer_phone,
           u_seller.name as seller_name,
-          u_seller.company_name as seller_company
+          u_seller.company_name as seller_company,
+          u_seller.email as seller_email
         FROM order_requests r
         JOIN materials m ON r.material_id = m.id
         JOIN users u_buyer ON r.buyer_id = u_buyer.id
@@ -1671,10 +1960,23 @@ class Database {
           o.*,
           m.material as material_name,
           m.listing_id,
+          m.brand,
+          m.category,
+          m.condition,
+          m.specs,
+          m.photo,
+          m.dimensions,
+          m.weight,
+          m.mrp,
+          m.price_today as current_price,
+          m.unit,
           u_buyer.name as buyer_name,
           u_buyer.company_name as buyer_company,
+          u_buyer.email as buyer_email,
+          u_buyer.phone as buyer_phone,
           u_seller.name as seller_name,
-          u_seller.company_name as seller_company
+          u_seller.company_name as seller_company,
+          u_seller.email as seller_email
         FROM orders o
         JOIN materials m ON o.material_id = m.id
         JOIN users u_buyer ON o.buyer_id = u_buyer.id
@@ -1828,22 +2130,59 @@ class Database {
           return reject(new Error('Material is being edited by another user'));
         }
         
-        // Update the material
-        const fields = Object.keys(updateData).map(key => `${key} = ?`).join(', ');
-        const values = Object.values(updateData);
-        values.push(materialId);
-        
-        this.db.run(
-          `UPDATE materials SET ${fields}, updated_at = CURRENT_TIMESTAMP, is_being_edited = 0, edited_by = NULL, edit_started_at = NULL WHERE id = ?`,
-          values,
-          function(err) {
-            if (err) {
-              reject(err);
-            } else {
-              resolve({ success: true, changes: this.changes });
-            }
+        // Get current material values to calculate inventory_value
+        this.db.get('SELECT quantity, price_today FROM materials WHERE id = ?', [materialId], (err, current) => {
+          if (err) {
+            return reject(err);
           }
-        );
+          
+          // Map frontend field names to database column names
+          const dbUpdateData = {};
+          if (updateData.material !== undefined) dbUpdateData.material = updateData.material;
+          if (updateData.brand !== undefined) dbUpdateData.brand = updateData.brand;
+          if (updateData.category !== undefined) dbUpdateData.category = this.normalizeCategory(updateData.category); // Normalize category
+          if (updateData.qty !== undefined) dbUpdateData.quantity = updateData.qty; // Map qty to quantity
+          if (updateData.quantity !== undefined) dbUpdateData.quantity = updateData.quantity;
+          if (updateData.unit !== undefined) dbUpdateData.unit = updateData.unit;
+          if (updateData.condition !== undefined) dbUpdateData.condition = updateData.condition;
+          if (updateData.priceToday !== undefined) dbUpdateData.price_today = updateData.priceToday; // Map priceToday to price_today
+          if (updateData.price_today !== undefined) dbUpdateData.price_today = updateData.price_today;
+          if (updateData.mrp !== undefined) dbUpdateData.mrp = updateData.mrp;
+          if (updateData.specs !== undefined) dbUpdateData.specs = updateData.specs;
+          if (updateData.photo !== undefined) dbUpdateData.photo = updateData.photo;
+          if (updateData.dimensions !== undefined) dbUpdateData.dimensions = updateData.dimensions;
+          if (updateData.weight !== undefined) dbUpdateData.weight = updateData.weight;
+          
+          // Calculate inventory_value if quantity or price changed
+          if (dbUpdateData.quantity !== undefined || dbUpdateData.price_today !== undefined) {
+            const qty = dbUpdateData.quantity !== undefined ? dbUpdateData.quantity : (current ? current.quantity : 0);
+            const price = dbUpdateData.price_today !== undefined ? dbUpdateData.price_today : (current ? current.price_today : 0);
+            dbUpdateData.inventory_value = qty * price;
+          }
+          
+          // Check if we have any fields to update
+          if (Object.keys(dbUpdateData).length === 0) {
+            return resolve({ success: true, changes: 0, message: 'No fields to update' });
+          }
+          
+          // Update the material
+          const fields = Object.keys(dbUpdateData).map(key => `${key} = ?`).join(', ');
+          const values = Object.values(dbUpdateData);
+          values.push(materialId);
+          
+          this.db.run(
+            `UPDATE materials SET ${fields}, updated_at = CURRENT_TIMESTAMP, is_being_edited = 0, edited_by = NULL, edit_started_at = NULL WHERE id = ?`,
+            values,
+            function(updateErr) {
+              if (updateErr) {
+                console.error('Database update error:', updateErr);
+                reject(updateErr);
+              } else {
+                resolve({ success: true, changes: this.changes });
+              }
+            }
+          );
+        });
       });
     });
   }
@@ -1898,8 +2237,7 @@ class Database {
         'SELECT COUNT(*) as total_materials FROM materials',
         'SELECT COUNT(*) as pending_requests FROM order_requests WHERE status = "pending"',
         'SELECT COUNT(*) as completed_orders FROM orders',
-        'SELECT SUM(total_amount) as total_revenue FROM orders',
-        'SELECT COUNT(*) as total_transfers FROM internal_transfers'
+        'SELECT SUM(total_amount) as total_revenue FROM orders'
       ];
       
       Promise.all(queries.map(query => 
@@ -1915,8 +2253,7 @@ class Database {
           totalMaterials: results[1].total_materials,
           pendingRequests: results[2].pending_requests,
           completedOrders: results[3].completed_orders,
-          totalRevenue: results[4].total_revenue || 0,
-          totalTransfers: results[5].total_transfers
+          totalRevenue: results[4].total_revenue || 0
         });
       }).catch(reject);
     });
@@ -2202,13 +2539,146 @@ class Database {
     }
   }
 
-  // Note: Category assignment is now SOLELY based on the Inventory Type column in Excel
-  // No automatic categorization or migration is performed
+  // Migrate material categories to normalized frontend categories
   async migrateMaterialCategories() {
     return new Promise((resolve, reject) => {
-      console.log('⚠️  Migration disabled: Categories are now solely based on Excel Inventory Type column');
-      console.log('ℹ️  Please re-upload your Excel file with correct Inventory Type codes (B, BA, D, E, F, H, L, P, S, SF, T)');
-      resolve({ updated: 0, total: 0, message: 'Migration disabled - use Excel Inventory Type column only' });
+      // Import FileParser for normalizeCategoryName (or define here)
+      const frontendCategories = [
+        'Doors', 'Tiles', 'Handles & Hardware', 'Toilets & Sanitary',
+        'Windows', 'Flooring', 'Lighting', 'Paint & Finishes',
+        'Plumbing', 'Electrical', 'Furniture', 'Marbles', 'Other'
+      ];
+      
+      const normalizeCategory = (category, inventoryType) => {
+        // First check if inventory_type is 'F' (Furniture)
+        if (inventoryType && inventoryType.toString().trim().toUpperCase() === 'F') {
+          return 'Furniture';
+        }
+        
+        if (!category) return 'Other';
+        const normalized = category.toString().trim();
+        const upper = normalized.toUpperCase();
+        
+        // Exact match
+        if (frontendCategories.includes(normalized)) {
+          return normalized;
+        }
+        
+        // Variations mapping (including singular/plural - e.g., "Tile" → "Tiles")
+        const variations = {
+          'TILE': 'Tiles',           // singular → plural (critical fix)
+          'TILES': 'Tiles',           // already plural
+          'HARDWARE': 'Handles & Hardware',
+          'HANDLES': 'Handles & Hardware',
+          'HANDLE': 'Handles & Hardware',
+          'SANITARY': 'Toilets & Sanitary',
+          'TOILET': 'Toilets & Sanitary',
+          'TOILETS': 'Toilets & Sanitary',
+          'BATHROOM': 'Toilets & Sanitary',
+          'LIGHTS': 'Lighting',
+          'LIGHT': 'Lighting',
+          'FAN': 'Lighting',
+          'FANS': 'Lighting',
+          'WINDOW': 'Windows',
+          'WINDOWS': 'Windows',
+          'FLOOR': 'Flooring',
+          'FLOORS': 'Flooring',
+          'FLOORING': 'Flooring',
+          'PAINT': 'Paint & Finishes',
+          'FINISHES': 'Paint & Finishes',
+          'FINISH': 'Paint & Finishes',
+          'PLUMB': 'Plumbing',
+          'PLUMBING': 'Plumbing',
+          'ELECTRIC': 'Electrical',
+          'ELECTRICAL': 'Electrical',
+          'DOOR': 'Doors',
+          'DOORS': 'Doors',
+          'FURNITURE': 'Furniture',
+          'MARBLE': 'Marbles',
+          'MARBLES': 'Marbles'
+        };
+        
+        if (variations[upper]) {
+          return variations[upper];
+        }
+        
+        // Partial matching (catches both "Tile" and "Tiles")
+        if (upper.includes('TILE')) return 'Tiles';  // Handles both singular and plural
+        if (upper.includes('HARDWARE') || upper.includes('HANDLE')) return 'Handles & Hardware';
+        if (upper.includes('SANITARY') || upper.includes('TOILET') || upper.includes('BATH')) return 'Toilets & Sanitary';
+        if (upper.includes('LIGHT') || upper.includes('LAMP') || upper.includes('FAN')) return 'Lighting';
+        if (upper.includes('WINDOW')) return 'Windows';
+        if (upper.includes('FLOOR')) return 'Flooring';
+        if (upper.includes('PAINT') || upper.includes('FINISH')) return 'Paint & Finishes';
+        if (upper.includes('PLUMB')) return 'Plumbing';
+        if (upper.includes('ELECTRIC')) return 'Electrical';
+        if (upper.includes('DOOR')) return 'Doors';
+        if (upper.includes('FURNITURE')) return 'Furniture';
+        if (upper.includes('MARBLE')) return 'Marbles';
+        
+        return 'Other';
+      };
+      
+      // Get all materials
+      this.db.all('SELECT id, category, inventory_type FROM materials', [], async (err, materials) => {
+        if (err) {
+          console.error('❌ Error fetching materials for migration:', err);
+          reject(err);
+          return;
+        }
+        
+        let updated = 0;
+        let total = materials.length;
+        
+        console.log(`🔄 Migrating categories for ${total} materials...`);
+        
+        // Update each material's category
+        let completed = 0;
+        const totalToProcess = materials.length;
+        
+        if (totalToProcess === 0) {
+          resolve({ updated: 0, total: 0, message: 'No materials to migrate' });
+          return;
+        }
+        
+        materials.forEach((material) => {
+          const oldCategory = material.category;
+          let newCategory = normalizeCategory(oldCategory, material.inventory_type);
+          
+          // If category is already correct, skip but count as completed
+          if (oldCategory === newCategory) {
+            completed++;
+            if (completed === totalToProcess) {
+              console.log(`✅ Migration complete! Updated ${updated} out of ${total} materials`);
+              resolve({ updated, total, message: `Updated ${updated} out of ${total} materials` });
+            }
+            return;
+          }
+          
+          // Update in database
+          this.db.run(
+            'UPDATE materials SET category = ? WHERE id = ?',
+            [newCategory, material.id],
+            (updateErr) => {
+              completed++;
+              if (updateErr) {
+                console.error(`❌ Error updating material ${material.id}:`, updateErr);
+              } else {
+                updated++;
+                if (updated % 10 === 0) {
+                  console.log(`✅ Migrated ${updated}/${total} materials...`);
+                }
+              }
+              
+              // Check if all updates are complete
+              if (completed === totalToProcess) {
+                console.log(`✅ Migration complete! Updated ${updated} out of ${total} materials`);
+                resolve({ updated, total, message: `Updated ${updated} out of ${total} materials` });
+              }
+            }
+          );
+        });
+      });
     });
   }
 }

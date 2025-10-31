@@ -657,14 +657,20 @@ class FileParser {
       }
     }
 
-    // Get inventory type code from Excel
-    const inventoryTypeCode = this.findColumnValue(row, this.columnMappings.inventoryType);
+    // First, try to get category directly from Excel "Category" column
+    let category = this.findColumnValue(row, this.columnMappings.category);
     
-    // Map inventory type code to category name - ONLY use the inventory type column
-    let category = this.mapInventoryTypeToCategory(inventoryTypeCode);
+    // If no direct category column, use inventory type code mapping
+    if (!category || category.trim() === '') {
+      const inventoryTypeCode = this.findColumnValue(row, this.columnMappings.inventoryType);
+      category = this.mapInventoryTypeToCategory(inventoryTypeCode);
+    }
     
-    // If no valid inventory type code found, default to 'Other'
-    if (!category) {
+    // Normalize category name to match frontend categories
+    category = this.normalizeCategoryName(category);
+    
+    // If no valid category found, default to 'Other'
+    if (!category || category.trim() === '') {
       category = 'Other';
     }
 
@@ -781,27 +787,114 @@ class FileParser {
     return isNaN(number) ? 0 : number;
   }
 
-  // Map inventory type codes to category names
+  // Map inventory type codes to category names (matching frontend categories)
   mapInventoryTypeToCategory(inventoryType) {
     if (!inventoryType) return null;
     
     const type = inventoryType.toString().trim().toUpperCase();
     
     const inventoryTypeMap = {
-      'B': 'Bathroom',
-      'BA': 'Big Appliances',
+      'B': 'Toilets & Sanitary', // Bathroom items → Toilets & Sanitary
+      'BA': 'Other', // Big Appliances → Other (not in frontend list)
       'D': 'Doors',
       'E': 'Electrical',
-      'F': 'Furniture',
-      'H': 'Hardware',
-      'L': 'Lights',
+      'F': 'Furniture', // Furniture → Furniture
+      'H': 'Handles & Hardware',
+      'L': 'Lighting',
       'P': 'Plumbing',
-      'S': 'Sanitary',
-      'SF': 'Fans',
-      'T': 'Tile'
+      'S': 'Toilets & Sanitary',
+      'SF': 'Lighting', // Fans → Lighting (closest match)
+      'T': 'Tiles'
     };
     
     return inventoryTypeMap[type] || null;
+  }
+
+  // Normalize category names to match frontend categories
+  normalizeCategoryName(category) {
+    if (!category) return null;
+    
+    const normalized = category.toString().trim();
+    const upper = normalized.toUpperCase();
+    
+    // Define frontend categories (must match server.js)
+    const frontendCategories = [
+      'Doors',
+      'Tiles',
+      'Handles & Hardware',
+      'Toilets & Sanitary',
+      'Windows',
+      'Flooring',
+      'Lighting',
+      'Paint & Finishes',
+      'Plumbing',
+      'Electrical',
+      'Furniture',
+      'Marbles',
+      'Other'
+    ];
+    
+    // Exact match check
+    if (frontendCategories.includes(normalized)) {
+      return normalized;
+    }
+    
+    // Common variations mapping (including singular/plural variations)
+    const variations = {
+      'TILE': 'Tiles',          // singular → plural
+      'TILES': 'Tiles',          // already plural
+      'TILE S': 'Tiles',
+      'TILE S': 'Tiles',
+      'HARDWARE': 'Handles & Hardware',
+      'HANDLES': 'Handles & Hardware',
+      'HANDLE': 'Handles & Hardware',
+      'SANITARY': 'Toilets & Sanitary',
+      'TOILET': 'Toilets & Sanitary',
+      'TOILETS': 'Toilets & Sanitary',
+      'BATHROOM': 'Toilets & Sanitary',
+      'LIGHTS': 'Lighting',
+      'LIGHT': 'Lighting',
+      'FAN': 'Lighting',
+      'FANS': 'Lighting',
+      'WINDOW': 'Windows',
+      'WINDOWS': 'Windows',
+      'FLOOR': 'Flooring',
+      'FLOORS': 'Flooring',
+      'FLOORING': 'Flooring',
+      'PAINT': 'Paint & Finishes',
+      'FINISHES': 'Paint & Finishes',
+      'FINISH': 'Paint & Finishes',
+      'PLUMB': 'Plumbing',
+      'PLUMBING': 'Plumbing',
+      'ELECTRIC': 'Electrical',
+      'ELECTRICAL': 'Electrical',
+      'DOOR': 'Doors',
+      'DOORS': 'Doors',
+      'FURNITURE': 'Furniture',
+      'MARBLE': 'Marbles',
+      'MARBLES': 'Marbles'
+    };
+    
+    // Check variations (case-insensitive)
+    if (variations[upper]) {
+      return variations[upper];
+    }
+    
+    // Partial matching for common patterns (handles "Tile" vs "Tiles")
+    if (upper.includes('TILE')) return 'Tiles';  // Catches both "Tile" and "Tiles"
+    if (upper.includes('HARDWARE') || upper.includes('HANDLE')) return 'Handles & Hardware';
+    if (upper.includes('SANITARY') || upper.includes('TOILET') || upper.includes('BATH')) return 'Toilets & Sanitary';
+    if (upper.includes('LIGHT') || upper.includes('LAMP') || upper.includes('FAN')) return 'Lighting';
+    if (upper.includes('WINDOW')) return 'Windows';
+    if (upper.includes('FLOOR')) return 'Flooring';
+    if (upper.includes('PAINT') || upper.includes('FINISH')) return 'Paint & Finishes';
+    if (upper.includes('PLUMB')) return 'Plumbing';
+    if (upper.includes('ELECTRIC')) return 'Electrical';
+    if (upper.includes('DOOR')) return 'Doors';
+    if (upper.includes('FURNITURE')) return 'Furniture';
+    if (upper.includes('MARBLE')) return 'Marbles';
+    
+    return null;
   }
 
   categorizeItem(materialName) {

@@ -18,6 +18,11 @@ body {
     padding: 0 20px;
 }
 
+/* Wider container for buyer marketplace to match seller dashboard width */
+.buyer-main .container {
+    max-width: 1400px;
+}
+
 /* Header */
 .header {
     background: #fff;
@@ -90,6 +95,177 @@ body {
 
 .nav-links .sign-out-btn:hover {
     color: #dc2626 !important;
+}
+
+/* User Profile Dropdown */
+.user-profile-dropdown {
+    position: relative;
+}
+
+.user-profile-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #f3f4f6;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    color: #1f2937;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.user-profile-btn:hover {
+    background: #10b981;
+    color: white;
+}
+
+.user-profile-btn i:first-child {
+    font-size: 1.2rem;
+}
+
+.user-profile-btn i:last-child {
+    font-size: 0.75rem;
+    transition: transform 0.3s;
+}
+
+.user-profile-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    min-width: 320px;
+    z-index: 1000;
+    overflow: hidden;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.profile-header {
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.3s;
+    border-radius: 8px 8px 0 0;
+}
+
+.profile-header:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    transform: translateY(-2px);
+}
+
+.profile-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.profile-info {
+    flex: 1;
+}
+
+.profile-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.profile-email {
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+.profile-details {
+    padding: 1rem 1.5rem;
+}
+
+.profile-detail-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.profile-detail-item:last-of-type {
+    border-bottom: none;
+}
+
+.profile-detail-item i {
+    color: #10b981;
+    font-size: 1.1rem;
+    width: 20px;
+    margin-top: 2px;
+}
+
+.profile-detail-item > div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.detail-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.detail-value {
+    font-size: 0.9rem;
+    color: #1f2937;
+    font-weight: 500;
+}
+
+.profile-divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 0.5rem 0;
+}
+
+.profile-signout-btn {
+    width: 100%;
+    padding: 0.875rem 1.5rem;
+    background: transparent;
+    border: none;
+    color: #ef4444;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.profile-signout-btn:hover {
+    background: #fef2f2;
+    color: #dc2626;
 }
 
 /* Buttons */
@@ -860,6 +1036,10 @@ body {
     padding: 1.5rem;
     height: fit-content;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    position: sticky;
+    top: 20px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
 }
 
 .category-sidebar h3 {
@@ -925,7 +1105,7 @@ body {
 
 .products-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1.5rem;
 }
 
@@ -2509,7 +2689,14 @@ body {
 
 /* Material Bids Modal */
 .modal-content.large {
-    max-width: 800px;
+    max-width: 1000px;
+    width: 90%;
+    max-height: 95vh;
+}
+
+.modal-content.large .modal-body {
+    max-height: calc(95vh - 100px);
+    overflow-y: auto;
 }
 
 .material-details {
@@ -3258,6 +3445,67 @@ body {
     .project-selector select {
         width: 100%;
     }
+}
+
+/* Profile Page Styles */
+.profile-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.profile-tab {
+    padding: 0.75rem 1.5rem;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #6b7280;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    position: relative;
+}
+
+.profile-tab:hover {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.profile-tab.active {
+    color: #10b981;
+    border-bottom-color: #10b981;
+    font-weight: 600;
+}
+
+.profile-tab-content {
+    display: none;
+}
+
+.profile-tab-content.active {
+    display: block;
+}
+
+.tab-badge {
+    background: #ef4444;
+    color: white;
+    border-radius: 10px;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 0.25rem;
+}
+
+.profile-menu-item:hover {
+    background: #f3f4f6 !important;
+}
+
+.profile-menu-item {
+    border-top: 1px solid #e5e7eb;
 }
 
 /* Touch-friendly adjustments */
