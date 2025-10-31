@@ -278,30 +278,54 @@ class FileParser {
       const allDirs = new Set();
       extractedFiles.forEach(file => {
         const dir = path.dirname(file);
-        if (dir !== tempDir) {
+        if (dir !== tempDir && dir !== '.') {
           allDirs.add(dir);
+          // Also check parent directories
+          let parentDir = path.dirname(dir);
+          while (parentDir !== tempDir && parentDir !== dir && parentDir.length > tempDir.length) {
+            allDirs.add(parentDir);
+            parentDir = path.dirname(parentDir);
+          }
         }
       });
       
+      // Check if images are in root directory
+      const rootImages = extractedFiles.filter(file => {
+        const fileName = path.basename(file);
+        return /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName) && 
+               path.dirname(file) === tempDir;
+      });
+      
       const possibleImageDirs = [
+        tempDir, // Check root first
         path.join(tempDir, 'images'),
         path.join(tempDir, 'Images'),
+        path.join(tempDir, 'IMAGES'),
         path.join(tempDir, 'test_folder', 'images'),
         path.join(tempDir, 'test_folder', 'Images'),
         ...Array.from(allDirs)
       ];
       
       for (const dirPath of possibleImageDirs) {
-        if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
-          // Check if directory contains image files
+        if (fs.existsSync(dirPath)) {
           try {
-            const files = fs.readdirSync(dirPath);
-            const hasImages = files.some(file => 
-              /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(file)
-            );
-            if (hasImages) {
-              imagesDir = dirPath;
-              console.log(`🖼️ Found images directory: ${dirPath}`);
+            const stat = fs.statSync(dirPath);
+            if (stat.isDirectory()) {
+              // Check if directory contains image files
+              const files = fs.readdirSync(dirPath);
+              const imageFiles = files.filter(file => 
+                /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(file)
+              );
+              
+              if (imageFiles.length > 0) {
+                imagesDir = dirPath;
+                console.log(`🖼️ Found images directory with ${imageFiles.length} images: ${dirPath}`);
+                break;
+              }
+            } else if (rootImages.length > 0 && dirPath === tempDir) {
+              // Images in root directory
+              imagesDir = tempDir;
+              console.log(`🖼️ Found ${rootImages.length} images in root directory`);
               break;
             }
           } catch (err) {
@@ -312,14 +336,25 @@ class FileParser {
       }
       
       if (!dataFile) {
-        // Try to find any file that might be data
+        // Try to find any file that might be data (more flexible search)
         const dataFiles = extractedFiles.filter(file => {
           const ext = path.extname(file).toLowerCase();
-          return ['.csv', '.xlsx', '.xls'].includes(ext);
+          const fileName = path.basename(file).toLowerCase();
+          return ['.csv', '.xlsx', '.xls'].includes(ext) && 
+                 !fileName.startsWith('._') && 
+                 !fileName.includes('~$'); // Exclude temp Excel files
         });
         
         if (dataFiles.length === 0) {
-          throw new Error('No Excel (.xlsx/.xls) or CSV file found in ZIP archive. Please ensure your ZIP contains at least one data file.');
+          // List what we found for debugging
+          const foundFiles = extractedFiles.slice(0, 10).map(f => path.basename(f));
+          console.error('❌ No data files found. Found files:', foundFiles);
+          throw new Error(`No Excel (.xlsx/.xls) or CSV file found in ZIP archive. Found ${extractedFiles.length} files but none were valid data files. Please ensure your ZIP contains at least one Excel or CSV file.`);
+        } else {
+          // Use the first valid data file
+          dataFile = dataFiles[0];
+          dataFileType = path.extname(dataFile).toLowerCase().replace('.', '');
+          console.log(`📊 Using first data file found: ${path.basename(dataFile)}`);
         }
       }
       
@@ -1022,65 +1057,172 @@ class FileParser {
   async extractZipFile(zipPath, tempDir) {
     return new Promise((resolve, reject) => {
       const extractedFiles = [];
+      let isComplete = false;
+      let hasError = false;
       
-      yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
-        if (err) {
-          reject(err);
-          return;
+      // Add timeout protection (30 seconds for extraction)
+      const extractionTimeout = setTimeout(() => {
+        if (!isComplete) {
+          isComplete = true;
+          hasError = true;
+          console.error('⏱️ ZIP extraction timeout after 30 seconds');
+          reject(new Error('ZIP extraction timeout - file may be corrupted or too large'));
         }
-        
-        zipfile.readEntry();
-        
-        zipfile.on('entry', (entry) => {
-          if (/\/$/.test(entry.fileName)) {
-            // Directory entry
-            const dirPath = path.join(tempDir, entry.fileName);
-            if (!fs.existsSync(dirPath)) {
-              fs.mkdirSync(dirPath, { recursive: true });
-            }
-            zipfile.readEntry();
-          } else {
-            // File entry
-            zipfile.openReadStream(entry, (err, readStream) => {
-              if (err) {
-                console.error('❌ Error reading ZIP entry:', err);
+      }, 30000);
+      
+      // Track active operations to ensure we don't miss entries
+      let pendingReads = 0;
+      let totalEntries = 0;
+      let processedEntries = 0;
+      
+      try {
+        yauzl.open(zipPath, { lazyEntries: true, decodeStrings: true }, (err, zipfile) => {
+          if (err) {
+            clearTimeout(extractionTimeout);
+            console.error('❌ Error opening ZIP file:', err);
+            reject(new Error(`Failed to open ZIP file: ${err.message}`));
+            return;
+          }
+          
+          if (!zipfile) {
+            clearTimeout(extractionTimeout);
+            reject(new Error('Failed to open ZIP file - invalid or corrupted archive'));
+            return;
+          }
+          
+          console.log('✅ ZIP file opened successfully');
+          
+          // Start reading entries
+          zipfile.readEntry();
+          
+          zipfile.on('entry', (entry) => {
+            totalEntries++;
+            processedEntries++;
+            
+            try {
+              // Handle directory entries
+              if (/\/$/.test(entry.fileName)) {
+                const dirPath = path.join(tempDir, entry.fileName);
+                if (!fs.existsSync(dirPath)) {
+                  fs.mkdirSync(dirPath, { recursive: true });
+                }
                 zipfile.readEntry();
                 return;
               }
               
-              const filePath = path.join(tempDir, entry.fileName);
-              const fileDir = path.dirname(filePath);
-              
-              if (!fs.existsSync(fileDir)) {
-                fs.mkdirSync(fileDir, { recursive: true });
+              // Skip dangerous file paths (security)
+              if (entry.fileName.includes('..') || entry.fileName.startsWith('/')) {
+                console.warn(`⚠️ Skipping potentially unsafe path: ${entry.fileName}`);
+                zipfile.readEntry();
+                return;
               }
               
-              const writeStream = fs.createWriteStream(filePath);
-              readStream.pipe(writeStream);
+              // File entry - open read stream
+              pendingReads++;
               
-              writeStream.on('close', () => {
-                extractedFiles.push(filePath);
-                console.log(`📄 Extracted: ${entry.fileName}`);
-                zipfile.readEntry();
+              zipfile.openReadStream(entry, (err, readStream) => {
+                pendingReads--;
+                
+                if (err) {
+                  console.error(`❌ Error reading ZIP entry "${entry.fileName}":`, err.message);
+                  // Continue with next entry instead of failing completely
+                  zipfile.readEntry();
+                  return;
+                }
+                
+                if (!readStream) {
+                  console.error(`❌ No read stream for entry: ${entry.fileName}`);
+                  zipfile.readEntry();
+                  return;
+                }
+                
+                try {
+                  const filePath = path.join(tempDir, entry.fileName);
+                  const fileDir = path.dirname(filePath);
+                  
+                  // Ensure directory exists
+                  if (!fs.existsSync(fileDir)) {
+                    fs.mkdirSync(fileDir, { recursive: true });
+                  }
+                  
+                  const writeStream = fs.createWriteStream(filePath);
+                  
+                  readStream.pipe(writeStream);
+                  
+                  writeStream.on('close', () => {
+                    extractedFiles.push(filePath);
+                    console.log(`📄 Extracted (${extractedFiles.length}/${totalEntries}): ${entry.fileName}`);
+                    
+                    // Continue reading entries
+                    zipfile.readEntry();
+                  });
+                  
+                  writeStream.on('error', (err) => {
+                    console.error(`❌ Error writing file "${entry.fileName}":`, err.message);
+                    // Continue with next entry
+                    zipfile.readEntry();
+                  });
+                  
+                  readStream.on('error', (err) => {
+                    console.error(`❌ Error reading stream for "${entry.fileName}":`, err.message);
+                    // Continue with next entry
+                    zipfile.readEntry();
+                  });
+                  
+                } catch (fileError) {
+                  console.error(`❌ Error processing file "${entry.fileName}":`, fileError.message);
+                  zipfile.readEntry();
+                }
               });
               
-              writeStream.on('error', (err) => {
-                console.error('❌ Error writing file:', err);
-                zipfile.readEntry();
-              });
-            });
-          }
+            } catch (entryError) {
+              console.error(`❌ Error processing entry "${entry.fileName}":`, entryError.message);
+              zipfile.readEntry();
+            }
+          });
+          
+          zipfile.on('end', () => {
+            clearTimeout(extractionTimeout);
+            
+            // Wait a bit for any pending writes to complete
+            const checkComplete = setInterval(() => {
+              if (pendingReads === 0 || hasError) {
+                clearInterval(checkComplete);
+                
+                if (!isComplete) {
+                  isComplete = true;
+                  console.log(`✅ ZIP extraction completed. ${extractedFiles.length} files extracted from ${totalEntries} total entries.`);
+                  resolve(extractedFiles);
+                }
+              }
+            }, 100);
+            
+            // Safety timeout for pending operations
+            setTimeout(() => {
+              clearInterval(checkComplete);
+              if (!isComplete) {
+                isComplete = true;
+                console.log(`✅ ZIP extraction completed (with ${pendingReads} pending operations). ${extractedFiles.length} files extracted.`);
+                resolve(extractedFiles);
+              }
+            }, 2000);
+          });
+          
+          zipfile.on('error', (err) => {
+            clearTimeout(extractionTimeout);
+            if (!isComplete) {
+              isComplete = true;
+              hasError = true;
+              console.error('❌ ZIP file error:', err);
+              reject(new Error(`ZIP file error: ${err.message}`));
+            }
+          });
         });
-        
-        zipfile.on('end', () => {
-          console.log(`✅ ZIP extraction completed. ${extractedFiles.length} files extracted.`);
-          resolve(extractedFiles);
-        });
-        
-        zipfile.on('error', (err) => {
-          reject(err);
-        });
-      });
+      } catch (openError) {
+        clearTimeout(extractionTimeout);
+        console.error('❌ Exception opening ZIP:', openError);
+        reject(new Error(`Failed to process ZIP file: ${openError.message}`));
+      }
     });
   }
 
