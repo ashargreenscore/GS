@@ -1,0 +1,96 @@
+===============================================
+GREENSCORE MARKETPLACE - QUICK DEPLOY STEPS
+===============================================
+
+✅ YOUR SESSION SECRET (for Railway):
+9c87f9a339d7c990f445c1a7f688eb69c43eff86165003e956445466fa359d1c
+
+===============================================
+STEP 1: PUSH TO GITHUB
+===============================================
+
+Option A - Use the batch file:
+  Double-click: PUSH_TO_GITHUB.bat
+  (When asked for password, use your GitHub Personal Access Token)
+
+Option B - Manual commands:
+  Open Command Prompt in this folder and run:
+  
+  git branch -M main
+  git push -u origin main
+
+  Username: ashargreenscore
+  Password: [Your Personal Access Token - see below how to create]
+
+===============================================
+STEP 2: CREATE GITHUB PERSONAL ACCESS TOKEN
+===============================================
+
+1. Go to: https://github.com/settings/tokens
+2. Click "Generate new token (classic)"
+3. Name: "GreenScore Railway Deployment"
+4. Expiration: Choose 30/90 days or No expiration
+5. Check "repo" checkbox
+6. Click "Generate token"
+7. COPY THE TOKEN - you won't see it again!
+8. Use this token as your password when pushing
+
+===============================================
+STEP 3: DEPLOY ON RAILWAY
+===============================================
+
+1. Go to: https://railway.app
+2. Login with GitHub (use ashargreenscore account)
+3. Click "New Project"
+4. Click "Deploy from GitHub repo"
+5. Select: ashargreenscore/GS
+6. Wait for deployment (2-3 minutes)
+
+===============================================
+STEP 4: ADD ENVIRONMENT VARIABLES IN RAILWAY
+===============================================
+
+In Railway: Your Service → Variables Tab → Add these:
+
+NODE_ENV = production
+APP_URL = https://greenscore.world
+DATABASE_PATH = ./greenscore.db
+SESSION_SECRET = 9c87f9a339d7c990f445c1a7f688eb69c43eff86165003e956445466fa359d1c
+MAX_FILE_SIZE = 50mb
+UPLOAD_PATH = ./uploads
+
+(Optional - if using SendGrid):
+SENDGRID_API_KEY = your_key_here
+EMAIL_FROM = GreenScore Marketplace <marketplace@greenscore.world>
+
+===============================================
+STEP 5: ADD CUSTOM DOMAIN IN RAILWAY
+===============================================
+
+1. Railway Dashboard → Settings → Domains
+2. Click "Custom Domain"
+3. Enter: greenscore.world
+4. Click "Add Domain"
+5. Copy the DNS instructions shown
+
+===============================================
+STEP 6: CONFIGURE GODADDY DNS
+===============================================
+
+1. Login to GoDaddy
+2. My Products → greenscore.world → DNS
+3. Delete old A/CNAME records for root domain (@)
+4. Add the DNS records exactly as Railway shows
+5. Save and wait 30-60 minutes
+
+===============================================
+STEP 7: TEST YOUR SITE
+===============================================
+
+Visit: https://greenscore.world
+Test all pages to make sure everything works!
+
+===============================================
+
+Need help? Check DEPLOYMENT_GUIDE.md for detailed instructions.
+
