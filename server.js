@@ -696,10 +696,23 @@ app.put('/api/notifications/:userId/mark-all-read', async (req, res) => {
 app.post('/api/upload-file', upload.single('file'), async (req, res) => {
   console.log('🔥 UPLOAD REQUEST RECEIVED');
   console.log('📁 File:', req.file ? req.file.originalname : 'NO FILE');
+  console.log('📁 File size:', req.file ? `${(req.file.size / 1024 / 1024).toFixed(2)} MB` : 'N/A');
   console.log('👤 Seller ID:', req.body.sellerId);
   console.log('🏗️ Project ID:', req.body.projectId);
   
   let filePath = null;
+  
+  // Set response timeout to prevent hanging
+  res.setTimeout(48000, () => {
+    if (!res.headersSent) {
+      console.error('⏱️ Response timeout - sending timeout error');
+      res.status(408).json({
+        success: false,
+        error: 'Request timeout',
+        message: 'File processing took too long. Please try splitting your file into smaller batches or contact support.'
+      });
+    }
+  });
   
   try {
     if (!req.file) {
@@ -778,16 +791,31 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
     console.log('📊 Starting file parsing...');
     let parseResult;
     try {
-      // Reduced timeout to 45 seconds to match Render's free tier limit
+      // Reduced timeout to 48 seconds to allow time for response (Render timeout is 50s)
       // For larger files, users should split them or upgrade to paid tier
+      const parseStartTime = Date.now();
       parseResult = await Promise.race([
-        fileParser.parseFile(req.file.path, fileType, sellerId, projectId),
+        fileParser.parseFile(req.file.path, fileType, sellerId, projectId).then(result => {
+          const parseDuration = Date.now() - parseStartTime;
+          console.log(`⏱️ File parsing completed in ${(parseDuration / 1000).toFixed(2)} seconds`);
+          return result;
+        }),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('File parsing timeout - file may be too large or complex. Try splitting into smaller files.')), 45000) // 45 second timeout to avoid Render's 50s limit
+          setTimeout(() => {
+            const parseDuration = Date.now() - parseStartTime;
+            console.error(`⏱️ File parsing timeout after ${(parseDuration / 1000).toFixed(2)} seconds`);
+            reject(new Error('File parsing timeout - file may be too large or complex. Try splitting into smaller files.'));
+          }, 48000) // 48 second timeout to allow time for response
         )
       ]);
     } catch (parseError) {
       console.error('❌ File parsing error:', parseError);
+      console.error('Error details:', {
+        message: parseError.message,
+        stack: parseError.stack,
+        name: parseError.name
+      });
+      
       // Clean up file
       if (filePath && fs.existsSync(filePath)) {
         try {
@@ -796,12 +824,19 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
           console.error('Error cleaning up file:', cleanupError);
         }
       }
-      return res.status(400).json({
-        success: false,
-        error: parseError.message || 'Failed to parse file',
-        message: 'An error occurred while parsing your file. Please check the file format and try again.',
-        details: parseError.toString()
-      });
+      
+      // Ensure response hasn't been sent
+      if (!res.headersSent) {
+        return res.status(400).json({
+          success: false,
+          error: parseError.message || 'Failed to parse file',
+          message: 'An error occurred while parsing your file. Please check the file format and try again.',
+          details: parseError.toString()
+        });
+      } else {
+        console.error('⚠️ Cannot send error response - headers already sent');
+        return;
+      }
     }
     
     console.log('📊 Parse result:', {
@@ -935,12 +970,15 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
 
   } catch (error) {
     console.error('❌ File upload error:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
     
     // Clean up file if it exists
     if (filePath && fs.existsSync(filePath)) {
       try {
         fs.unlinkSync(filePath);
+        console.log('🧹 Cleaned up uploaded file');
       } catch (cleanupError) {
         console.error('Error cleaning up file:', cleanupError);
       }
@@ -952,12 +990,24 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
       return;
     }
 
-    res.status(500).json({ 
+    // Send error response with detailed information
+    const errorResponse = {
       success: false,
       error: 'Server error during file processing',
       message: 'An error occurred while processing your file. Please try again.',
-      details: error.message || error.toString()
-    });
+    };
+    
+    // Add error details only in development or for specific error types
+    if (process.env.NODE_ENV === 'development' || error.name === 'TypeError' || error.name === 'ReferenceError') {
+      errorResponse.details = error.message || error.toString();
+    }
+    
+    try {
+      res.status(500).json(errorResponse);
+      console.log('✅ Error response sent to client');
+    } catch (responseError) {
+      console.error('❌ Failed to send error response:', responseError);
+    }
   }
 });
 

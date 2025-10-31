@@ -1802,12 +1802,12 @@ async function uploadCSV() {
     const progressFill = uploadProgress.querySelector('.progress-fill');
     progressFill.style.width = '20%';
     
-    // Create AbortController for timeout (45 seconds - Render free tier has 50s limit)
+    // Create AbortController for timeout (48 seconds - Render free tier has 50s limit)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
         controller.abort();
-        console.log('⏱️ Request timeout - aborting');
-    }, 45000); // 45 seconds to avoid Render's 50s timeout
+        console.log('⏱️ Request timeout - aborting (48s limit reached)');
+    }, 48000); // 48 seconds to allow time for server response before Render's 50s limit
     
     try {
         console.log('🌐 Sending request to /api/upload-file...');
