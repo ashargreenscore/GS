@@ -912,18 +912,26 @@ class FileParser {
     // Extract inventory type code first (needed for both category mapping and material object)
     const inventoryTypeCode = this.findColumnValue(row, this.columnMappings.inventoryType);
     
-    // First, try to get category directly from Excel "Category" column
-    let category = this.findColumnValue(row, this.columnMappings.category);
+    // PRIORITY 1: Use inventory type column directly as category (if present)
+    let category = inventoryTypeCode ? inventoryTypeCode.trim() : null;
     
-    // If no direct category column, use inventory type code mapping
+    // PRIORITY 2: If no inventory type, try to get category directly from Excel "Category" column
     if (!category || category.trim() === '') {
-      category = this.mapInventoryTypeToCategory(inventoryTypeCode);
+      category = this.findColumnValue(row, this.columnMappings.category);
     }
     
-    // Normalize category name to match frontend categories
+    // Normalize category name to match frontend categories (handles variations like 'F' → 'Furniture', 'P' → 'Plumbing', etc.)
+    const beforeNormalize = category;
     category = this.normalizeCategoryName(category);
     
-    // If still no category, try to categorize based on material name
+    // If normalizeCategoryName didn't find a match, try mapping inventory type code
+    if (!category && inventoryTypeCode) {
+      category = this.mapInventoryTypeToCategory(inventoryTypeCode);
+      // Normalize the mapped result
+      category = this.normalizeCategoryName(category);
+    }
+    
+    // PRIORITY 3: If still no category, try to categorize based on material name
     if (!category || category.trim() === '') {
       category = this.categorizeItem(materialName);
       // Normalize the categorized result
