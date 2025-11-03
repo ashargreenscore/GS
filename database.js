@@ -1588,6 +1588,7 @@ class Database {
   }
 
   async getTransactionHistory(sellerId) {
+    const pool = await this.ensurePool();
     try {
       const query = `
         SELECT 
