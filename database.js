@@ -1615,6 +1615,7 @@ class Database {
   }
 
   async createTransactionRecord(transactionData) {
+    const pool = await this.ensurePool();
     try {
       const { v4: uuidv4 } = require('uuid');
       const transactionId = uuidv4();
