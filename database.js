@@ -1180,6 +1180,7 @@ class Database {
   }
 
   async getOrderRequestsForMaterial(materialId) {
+    const pool = await this.ensurePool();
     try {
       const query = `
         SELECT 
@@ -1470,6 +1471,7 @@ class Database {
   }
 
   async getOrdersBySeller(sellerId) {
+    const pool = await this.ensurePool();
     try {
       const query = `
         SELECT 

@@ -405,10 +405,13 @@ app.get('/api/seller/:sellerId/materials', async (req, res) => {
     const filters = { projectId, inventoryType, listingType };
     const materials = await db.getMaterialsBySeller(sellerId, filters);
     
-    res.json(materials);
+    // Ensure we always return an array
+    const materialsArray = Array.isArray(materials) ? materials : [];
+    res.json(materialsArray);
   } catch (error) {
-    console.error('Get seller materials error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('❌ Get seller materials error:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Server error', message: error.message });
   }
 });
 
@@ -1083,10 +1086,13 @@ app.get('/api/seller/:sellerId/order-requests', async (req, res) => {
   try {
     const { sellerId } = req.params;
     const requests = await db.getOrderRequestsBySeller(sellerId);
-    res.json({ success: true, requests });
+    // Ensure we always return an array
+    const requestsArray = Array.isArray(requests) ? requests : [];
+    res.json({ success: true, requests: requestsArray });
   } catch (error) {
     console.error('❌ Get order requests error:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch order requests' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ success: false, error: 'Failed to fetch order requests', message: error.message });
   }
 });
 
@@ -1181,10 +1187,13 @@ app.get('/api/seller/:sellerId/transactions', async (req, res) => {
   try {
     const { sellerId } = req.params;
     const transactions = await db.getTransactionHistory(sellerId);
-    res.json({ success: true, transactions });
+    // Ensure we always return an array
+    const transactionsArray = Array.isArray(transactions) ? transactions : [];
+    res.json({ success: true, transactions: transactionsArray });
   } catch (error) {
     console.error('❌ Get transaction history error:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch transaction history' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ success: false, error: 'Failed to fetch transaction history', message: error.message });
   }
 });
 
