@@ -1649,6 +1649,7 @@ class Database {
 
   // Admin methods
   async getAllUsers() {
+    const pool = await this.ensurePool();
     try {
       const query = `
         SELECT 
@@ -1665,6 +1666,7 @@ class Database {
         ORDER BY u.created_at DESC
       `;
       
+      const pool = await this.ensurePool();
       const result = await pool.query(query);
       return result.rows;
     } catch (error) {
@@ -1673,6 +1675,7 @@ class Database {
   }
 
   async getAllMaterials() {
+    const pool = await this.ensurePool();
     try {
       const query = `
         SELECT 
@@ -1707,6 +1710,7 @@ class Database {
   }
 
   async getAllOrderRequests() {
+    const pool = await this.ensurePool();
     try {
       const query = `
         SELECT 
@@ -1746,6 +1750,7 @@ class Database {
   }
 
   async getAllOrders() {
+    const pool = await this.ensurePool();
     try {
       const query = `
         SELECT 
@@ -2068,6 +2073,7 @@ class Database {
   }
 
   async getSystemStats() {
+    const pool = await this.ensurePool();
     try {
       const queries = [
         'SELECT COUNT(*) as total_users FROM users WHERE user_type != \'admin\'',
@@ -2077,7 +2083,7 @@ class Database {
         'SELECT SUM(total_amount) as total_revenue FROM orders'
       ];
       
-      const results = await Promise.all(queries.map(query => this.pool.query(query)));
+      const results = await Promise.all(queries.map(query => pool.query(query)));
       
       return {
         totalUsers: parseInt(results[0].rows[0].total_users) || 0,
@@ -2092,6 +2098,7 @@ class Database {
   }
 
   async updateUser(userId, updateData) {
+    const pool = await this.ensurePool();
     try {
       const fields = Object.keys(updateData).map((key, index) => `${key} = $${index + 1}`).join(', ');
       const values = Object.values(updateData);

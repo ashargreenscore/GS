@@ -23,11 +23,21 @@ document.addEventListener('DOMContentLoaded', function() {
         initializeUserProfile();
     }
     
-    loadCategories();
-    loadMaterials();
-    setupEventListeners();
+    // Load critical data in parallel for faster loading
+    Promise.all([
+        loadCategories(),
+        loadMaterials()
+    ]).then(() => {
+        setupEventListeners();
+    }).catch(error => {
+        console.error('Error loading initial data:', error);
+    });
+    
+    // Load non-critical data separately (cart, notifications)
     loadCart();
-    loadNotifications();
+    if (currentUser) {
+        loadNotifications();
+    }
     
     // Set up auto-refresh system
     setupAutoRefresh();
@@ -319,25 +329,29 @@ async function loadCategories() {
 async function loadMaterials() {
     try {
         const response = await fetch('/api/materials');
+        if (!response.ok) throw new Error('Failed to load materials');
         materials = await response.json();
         
         filteredMaterials = [...materials];
         
-        // Populate filters
+        // Populate filters and display immediately
         populateProjectFilters();
         populateLocationFilters();
-        
+        populateCategoryFilters();
         displayMaterials();
         updateCategoryCounts();
     } catch (error) {
         console.error('Error loading materials:', error);
-        document.getElementById('products-grid').innerHTML = `
-            <div class="no-products">
-                <i class="fas fa-exclamation-triangle"></i>
-                <h3>Error loading materials</h3>
-                <p>Please try refreshing the page.</p>
-            </div>
-        `;
+        const productsGrid = document.getElementById('products-grid');
+        if (productsGrid) {
+            productsGrid.innerHTML = `
+                <div class="no-products">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error loading materials</h3>
+                    <p>Please try refreshing the page.</p>
+                </div>
+            `;
+        }
     }
 }
 
