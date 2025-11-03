@@ -101,11 +101,16 @@ class Database {
         finalConnectionString = connectionString;
       }
       
-      // Initialize PostgreSQL connection pool
+      // Initialize PostgreSQL connection pool with optimized settings for Supabase
       this.pool = new Pool({
         connectionString: finalConnectionString,
         ssl: connectionString?.includes('supabase') ? { rejectUnauthorized: false } : false,
-        connectionTimeoutMillis: 10000, // 10 second timeout
+        connectionTimeoutMillis: 30000, // 30 second timeout for initial connection
+        idleTimeoutMillis: 30000, // 30 seconds before idle connections are closed
+        max: 10, // Maximum number of clients in the pool
+        min: 2, // Minimum number of clients in the pool (keeps connections alive)
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000, // Send keepalive after 10 seconds
       });
       
       // Handle connection errors
