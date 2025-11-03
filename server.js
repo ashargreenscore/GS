@@ -16,7 +16,16 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Initialize database and file parser
-const db = new Database();
+let db;
+try {
+  db = new Database();
+} catch (error) {
+  console.error('❌ Failed to initialize database:', error.message);
+  console.error('⚠️ Server will start but database operations will fail');
+  // Create a dummy db object to prevent crashes
+  db = null;
+}
+
 const fileParser = new FileParser();
 
 // Middleware
@@ -1716,14 +1725,32 @@ app.use((error, req, res, next) => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('Shutting down gracefully...');
-  db.close();
+  if (db && db.close) {
+    db.close();
+  }
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   console.log('Shutting down gracefully...');
-  db.close();
+  if (db && db.close) {
+    db.close();
+  }
   process.exit(0);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  console.error('Stack:', error.stack);
+  // Don't exit - let Render restart it
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise);
+  console.error('Reason:', reason);
+  // Don't exit - let Render restart it
 });
 
 app.listen(PORT, () => {

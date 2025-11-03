@@ -12,7 +12,12 @@ class Database {
       console.error('❌ ERROR: DATABASE_URL environment variable is not set!');
       console.error('Please set DATABASE_URL to your PostgreSQL connection string.');
       console.error('Example: postgresql://user:password@host:port/database');
-      throw new Error('DATABASE_URL environment variable is required');
+      console.error('⚠️ Continuing without database connection - API calls will fail');
+      // Don't throw - allow server to start, but mark as not initialized
+      this.pool = null;
+      this.initializationPromise = null;
+      this.emailService = new EmailService();
+      return;
     }
     
     // Force IPv4 DNS resolution (required for IPv4-only environments like Render)
