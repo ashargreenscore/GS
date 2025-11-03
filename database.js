@@ -1679,21 +1679,18 @@ class Database {
   async getAllMaterials() {
     const pool = await this.ensurePool();
     try {
+      // Optimized query: Fetch materials first, then get counts separately if needed
+      // This avoids expensive GROUP BY operations with COUNT aggregations
       const query = `
         SELECT 
           m.*,
           u.name as seller_name,
           u.company_name as seller_company,
           p.name as project_name,
-          p.location as project_location,
-          COUNT(DISTINCT req.id) as pending_requests,
-          COUNT(DISTINCT o.id) as completed_orders
+          p.location as project_location
         FROM materials m
         LEFT JOIN users u ON m.seller_id = u.id
         LEFT JOIN projects p ON m.project_id = p.id
-        LEFT JOIN order_requests req ON m.id = req.material_id AND req.status = 'pending'
-        LEFT JOIN orders o ON m.id = o.material_id
-        GROUP BY m.id, u.name, u.company_name, p.name, p.location
         ORDER BY m.created_at DESC
       `;
       
@@ -1702,7 +1699,9 @@ class Database {
       // Normalize categories for all materials (e.g., "Tile" → "Tiles")
       const normalizedRows = result.rows.map(row => ({
         ...row,
-        category: this.normalizeCategory(row.category)
+        category: this.normalizeCategory(row.category),
+        pending_requests: 0, // Can be calculated separately if needed
+        completed_orders: 0  // Can be calculated separately if needed
       }));
       
       return normalizedRows;

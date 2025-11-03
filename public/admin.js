@@ -274,12 +274,27 @@ async function loadMaterials() {
             materials = result.materials || [];
             console.log(`Loaded ${materials.length} materials`);
             
-            updateAdminMaterialsProgress(100, 'Complete!');
+            updateAdminMaterialsProgress(90, 'Rendering...');
             
+            // Display immediately without delay
+            displayMaterials();
+            populateSellerFilter();
+            
+            // Clear loading state after render
+            updateAdminMaterialsProgress(100, 'Complete!');
             setTimeout(() => {
-                displayMaterials();
-                populateSellerFilter();
-            }, 300);
+                // Ensure loading indicator is removed
+                const gridContainer = document.getElementById('materials-grid');
+                const tableContainer = document.getElementById('materials-table-body');
+                if (gridContainer && gridContainer.innerHTML.includes('loading-spinner')) {
+                    // displayMaterials should have replaced it, but ensure it's gone
+                    const loadingDiv = gridContainer.querySelector('.loading-spinner')?.closest('div');
+                    if (loadingDiv) loadingDiv.remove();
+                }
+                if (tableContainer && tableContainer.innerHTML.includes('Loading')) {
+                    // displayMaterials should have replaced it
+                }
+            }, 100);
         } else {
             console.error('Failed to load materials:', result.error);
             materials = [];
@@ -342,6 +357,16 @@ function toggleMaterialsView(view) {
 
 function displayMaterials() {
     const countElement = document.getElementById('total-materials-count');
+    const gridContainer = document.getElementById('materials-grid');
+    const tableContainer = document.getElementById('materials-table-body');
+    
+    // Clear any loading indicators first
+    if (gridContainer) {
+        const loadingDiv = gridContainer.querySelector('.loading-spinner')?.closest('div');
+        if (loadingDiv && loadingDiv.parentNode) {
+            loadingDiv.remove();
+        }
+    }
     
     if (countElement) {
         countElement.textContent = formatIndianNumber(materials.length);
