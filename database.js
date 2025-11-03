@@ -70,17 +70,27 @@ class Database {
         console.warn('⚠️ Consider using Transaction Pooler (port 6543) for better compatibility.');
       }
       
-      // Parse connection string manually to preserve password encoding
-      // Supports two formats:
-      // 1. postgresql://postgres:password@db.xxx.supabase.co:6543/postgres
-      // 2. postgresql://postgres.xxx:password@aws-x-region.pooler.supabase.com:6543/postgres
-      const urlMatch = connectionString.match(/^postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/);
-      if (!urlMatch) {
-        throw new Error('Invalid DATABASE_URL format. Expected: postgresql://user:password@host:port/database');
+      // Parse connection string - use URL constructor for proper encoding
+      // This handles special characters in password automatically
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(connectionString);
+      } catch (urlError) {
+        throw new Error(`Invalid DATABASE_URL format: ${urlError.message}`);
       }
       
-      const [, username, password, hostname, port, database] = urlMatch;
+      const username = parsedUrl.username;
+      const password = parsedUrl.password; // URL constructor handles URL decoding
+      const hostname = parsedUrl.hostname;
+      const port = parsedUrl.port || '5432';
+      const database = parsedUrl.pathname.slice(1); // Remove leading '/'
+      
       console.log(`📋 Parsed connection: user=${username}, host=${hostname}, port=${port}, db=${database}`);
+      
+      // Reconstruct connection string with proper encoding for special characters
+      // URL constructor will automatically encode special characters
+      const encodedPassword = encodeURIComponent(password);
+      const safeConnectionString = `postgresql://${username}:${encodedPassword}@${hostname}:${port}/${database}`;
       
       // Try to resolve hostname to IPv4 address, fallback to original if DNS fails
       let finalConnectionString = connectionString;
