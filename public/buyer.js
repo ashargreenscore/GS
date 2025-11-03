@@ -126,6 +126,15 @@ async function loadUserProfileDetails() {
 function updateProfileDetails(user) {
     // Update profile detail fields
     const detailName = document.getElementById('profile-detail-name');
+    const profileUserName = document.getElementById('profile-user-name');
+    
+    // Update both dropdown button name and detail name
+    if (detailName && user && user.name) {
+        detailName.textContent = user.name;
+    }
+    if (profileUserName && user && user.name) {
+        profileUserName.textContent = user.name;
+    }
     const detailEmail = document.getElementById('profile-detail-email');
     const detailCompany = document.getElementById('profile-detail-company');
     const detailPhone = document.getElementById('profile-detail-phone');
@@ -570,15 +579,28 @@ function displayMaterials() {
     const productsTitle = document.getElementById('products-title');
     const productsCount = document.getElementById('products-count');
     
+    // Clear any loading indicators first
+    if (productsGrid) {
+        const loadingDiv = productsGrid.querySelector('div');
+        if (loadingDiv && (loadingDiv.innerHTML.includes('loading-spinner') || loadingDiv.innerHTML.includes('Loading'))) {
+            // Remove loading indicator
+            loadingDiv.remove();
+        }
+    }
+    
     if (filteredMaterials.length === 0) {
-        productsGrid.innerHTML = `
-            <div class="no-products">
-                <i class="fas fa-search"></i>
-                <h3>No materials found</h3>
-                <p>Try adjusting your search criteria or browse different categories.</p>
-            </div>
-        `;
-        productsCount.textContent = '0 items found';
+        if (productsGrid) {
+            productsGrid.innerHTML = `
+                <div class="no-products">
+                    <i class="fas fa-search"></i>
+                    <h3>No materials found</h3>
+                    <p>Try adjusting your search criteria or browse different categories.</p>
+                </div>
+            `;
+        }
+        if (productsCount) {
+            productsCount.textContent = '0 items found';
+        }
         return;
     }
     
@@ -591,8 +613,9 @@ function displayMaterials() {
         // Parse photo with caching for performance
         const photoUrl = parsePhoto(material.photo);
         
+        const onClickHandler = material.is_being_edited ? '' : `showProductModal('${material.id}')`;
         return `
-        <div class="product-card" onclick="${material.is_being_edited ? '' : `showProductModal('${material.id}')`}" style="position: relative; ${material.is_being_edited ? 'opacity: 0.7; cursor: not-allowed;' : ''}">
+        <div class="product-card" onclick="${onClickHandler}" style="position: relative; ${material.is_being_edited ? 'opacity: 0.7; cursor: not-allowed;' : ''}">
             ${material.is_being_edited ? `
                 <div style="position: absolute; top: 10px; left: 10px; background: #ef4444; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; z-index: 10;">
                     <i class="fas fa-lock"></i> Being Edited
