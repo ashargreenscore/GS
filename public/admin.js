@@ -582,10 +582,29 @@ function displayOrders() {
         return;
     }
     
-    tableBody.innerHTML = orders.map(order => `
+    tableBody.innerHTML = orders.map(order => {
+        // Parse photo for table row (optional thumbnail)
+        let photoUrl = null;
+        if (order.photo) {
+            try {
+                const parsed = JSON.parse(order.photo);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    photoUrl = parsed[0];
+                } else if (parsed && typeof parsed === 'string') {
+                    photoUrl = parsed;
+                } else {
+                    photoUrl = order.photo;
+                }
+            } catch {
+                photoUrl = order.photo;
+            }
+        }
+        
+        return `
         <tr>
             <td><code>${order.id.substring(0, 8)}...</code></td>
             <td>
+                ${photoUrl ? `<img src="${photoUrl}" alt="${order.material_name}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; margin-right: 8px; vertical-align: middle;" onerror="this.style.display='none'">` : ''}
                 <strong>${order.material_name}</strong><br>
                 <small>Listing: ${order.listing_id || 'N/A'}</small>
             </td>
@@ -603,7 +622,8 @@ function displayOrders() {
                 </div>
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // Detailed view for completed orders (with photos and all details)
