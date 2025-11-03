@@ -1946,16 +1946,21 @@ class Database {
         } else {
           // Check if lock has timed out (5 minutes - reduced from 15)
           if (material.edit_started_at) {
-            const editStarted = new Date(material.edit_started_at);
-            const now = new Date();
-            const diffMinutes = (now - editStarted) / 1000 / 60;
-            
-            if (diffMinutes < 5) {
-              throw new Error('Material is currently being edited by another user. Please try again later.');
+            try {
+              const editStarted = new Date(material.edit_started_at);
+              const now = new Date();
+              const diffMinutes = (now - editStarted) / 1000 / 60;
+              
+              if (diffMinutes < 5) {
+                throw new Error('Material is currently being edited by another user. Please try again later.');
+              }
+              
+              // Lock expired, clear it
+              console.log(`✅ Lock expired (${Math.round(diffMinutes)} minutes old), allowing update`);
+            } catch (dateError) {
+              // Invalid date, treat as stale
+              console.log('✅ Invalid lock timestamp, treating as stale and allowing update');
             }
-            
-            // Lock expired, clear it
-            console.log(`✅ Lock expired (${Math.round(diffMinutes)} minutes old), allowing update`);
           } else {
             // No timestamp, consider stale and clear
             console.log('✅ Stale lock detected, clearing and allowing update');
