@@ -1881,12 +1881,30 @@ class Database {
 
   // Unlock material after editing
   async unlockMaterial(materialId, userId) {
+    const pool = await this.ensurePool();
     try {
-      const result = await pool.query(
-        'UPDATE materials SET is_being_edited = FALSE, edited_by = NULL, edit_started_at = NULL WHERE id = $1 AND (edited_by = $2 OR edited_by IS NULL)',
-        [materialId, userId]
+      // Check if user is the owner - owners can always unlock
+      const materialResult = await pool.query(
+        'SELECT seller_id, edited_by FROM materials WHERE id = $1',
+        [materialId]
       );
-      return { success: true, unlocked: true, changes: result.rowCount };
+      
+      if (materialResult.rows.length === 0) {
+        return { success: true, unlocked: true }; // Material not found, consider unlocked
+      }
+      
+      const material = materialResult.rows[0];
+      const isOwner = material.seller_id === userId;
+      
+      // Allow unlock if: user is owner, user is the editor, or no one is editing
+      if (isOwner || material.edited_by === userId || !material.edited_by) {
+        await pool.query(
+          'UPDATE materials SET is_being_edited = FALSE, edited_by = NULL, edit_started_at = NULL WHERE id = $1',
+          [materialId]
+        );
+      }
+      
+      return { success: true, unlocked: true };
     } catch (error) {
       throw error;
     }
@@ -1894,10 +1912,11 @@ class Database {
 
   // Update material with edit lock check
   async updateMaterialWithLock(materialId, userId, updateData) {
+    const pool = await this.ensurePool();
     try {
-      // First check if user has lock on this material
+      // First check if material is locked by another user, also get seller_id
       const materialResult = await pool.query(
-        'SELECT is_being_edited, edited_by FROM materials WHERE id = $1',
+        'SELECT is_being_edited, edited_by, edit_started_at, seller_id FROM materials WHERE id = $1',
         [materialId]
       );
       
@@ -1906,10 +1925,38 @@ class Database {
       }
       
       const material = materialResult.rows[0];
+      const isOwner = material.seller_id === userId;
+      
+      // Check if material is locked by another user
+      if (material.is_being_edited && material.edited_by !== userId) {
+        // If user is the owner, allow override
+        if (isOwner) {
+          console.log(`✅ Owner override: Material ${materialId} owned by ${userId}, allowing update`);
+          // Clear the lock and proceed
+        } else {
+          // Check if lock has timed out (5 minutes - reduced from 15)
+          if (material.edit_started_at) {
+            const editStarted = new Date(material.edit_started_at);
+            const now = new Date();
+            const diffMinutes = (now - editStarted) / 1000 / 60;
+            
+            if (diffMinutes < 5) {
+              throw new Error('Material is currently being edited by another user. Please try again later.');
+            }
+            
+            // Lock expired, clear it
+            console.log(`✅ Lock expired (${Math.round(diffMinutes)} minutes old), allowing update`);
+          } else {
+            // No timestamp, consider stale and clear
+            console.log('✅ Stale lock detected, clearing and allowing update');
+          }
+        }
         
-        // Check if material is locked by another user
-        if (material.is_being_edited && material.edited_by !== userId) {
-        throw new Error('Material is being edited by another user');
+        // Clear the lock
+        await pool.query(
+          'UPDATE materials SET is_being_edited = FALSE, edited_by = NULL, edit_started_at = NULL WHERE id = $1',
+          [materialId]
+        );
       }
       
       // Get current material values to calculate inventory_value
