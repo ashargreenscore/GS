@@ -486,9 +486,33 @@ class Database {
   async findUserByEmail(email) {
     const pool = await this.ensurePool();
     try {
-      const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+      // Use query with timeout handling
+      const result = await Promise.race([
+        pool.query('SELECT * FROM users WHERE email = $1', [email]),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Query timeout')), 15000)
+        )
+      ]);
       return result.rows[0] || null;
     } catch (error) {
+      // If connection error, try to refresh pool
+      if (error.message.includes('terminated') || error.message.includes('timeout') || error.message.includes('Connection')) {
+        console.warn('⚠️ Connection issue detected, attempting to refresh pool...');
+        // Clear the pool to force reconnection
+        if (this.pool && this.pool.end) {
+          try {
+            await this.pool.end();
+          } catch (e) {
+            // Ignore errors during cleanup
+          }
+        }
+        this.pool = null;
+        this.initializationPromise = null;
+        // Retry once
+        const retryPool = await this.ensurePool();
+        const retryResult = await retryPool.query('SELECT * FROM users WHERE email = $1', [email]);
+        return retryResult.rows[0] || null;
+      }
       throw error;
     }
   }
