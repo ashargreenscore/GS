@@ -2534,6 +2534,17 @@ function setupAutoRefresh() {
     
     // Start initial periodic refresh
     startPeriodicRefresh();
+    
+    // Also restart refresh when user switches tabs (to adjust interval)
+    const tabButtons = document.querySelectorAll('.tab-button');
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Small delay to let tab switch complete, then restart refresh
+            setTimeout(() => {
+                startPeriodicRefresh();
+            }, 100);
+        });
+    });
 }
 
 function startPeriodicRefresh() {
@@ -2541,15 +2552,33 @@ function startPeriodicRefresh() {
         clearInterval(refreshInterval);
     }
     
-    // Refresh every 15 seconds when page is visible for real-time order updates
+    // Smart refresh: Check which tab is active
+    const activeTab = document.querySelector('.tab-content.active');
+    const isOrderRequestsActive = activeTab && activeTab.id === 'order-requests-tab';
+    
+    // Faster refresh (30 seconds) if order requests tab is active (time-sensitive)
+    // Slower refresh (60 seconds) otherwise (inventory/projects don't change often)
+    const interval = isOrderRequestsActive ? 30000 : 60000; // 30s for orders, 60s otherwise
+    
     refreshInterval = setInterval(() => {
         if (isPageVisible) {
+            // Re-check active tab on each refresh in case user switched tabs
+            const currentTab = document.querySelector('.tab-content.active');
+            const currentlyOnOrders = currentTab && currentTab.id === 'order-requests-tab';
+            
+            // If tab changed, restart with appropriate interval
+            if (currentlyOnOrders !== isOrderRequestsActive) {
+                startPeriodicRefresh(); // Restart with new interval
+                return;
+            }
+            
             console.log('🔄 Periodic refresh...');
             refreshAllData();
         }
-    }, 15000); // Reduced to 15 seconds for more real-time updates
+    }, interval);
     
-    console.log('✅ Periodic refresh started (15 second intervals)');
+    const intervalSeconds = interval / 1000;
+    console.log(`✅ Periodic refresh started (${intervalSeconds} second intervals${isOrderRequestsActive ? ' - Order Requests tab active' : ''})`);
 }
 
 async function refreshAllData() {
