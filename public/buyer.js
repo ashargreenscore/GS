@@ -79,13 +79,26 @@ function signOut() {
 async function initializeUserProfile() {
     if (!currentUser) return;
     
-    // Set name in button
+    // Immediately set name in button from currentUser (from localStorage)
     const profileUserName = document.getElementById('profile-user-name');
-    if (profileUserName && currentUser) {
-        profileUserName.textContent = currentUser.name || 'User';
+    if (profileUserName && currentUser && currentUser.name) {
+        profileUserName.textContent = currentUser.name;
+    } else if (profileUserName && currentUser && currentUser.email) {
+        // Fallback to email if name not available
+        profileUserName.textContent = currentUser.email.split('@')[0];
     }
     
-    // Load full user details
+    // Also update profile detail name immediately
+    const profileDetailName = document.getElementById('profile-detail-name');
+    if (profileDetailName && currentUser && currentUser.name) {
+        profileDetailName.textContent = currentUser.name;
+    }
+    const profileDetailEmail = document.getElementById('profile-detail-email');
+    if (profileDetailEmail && currentUser && currentUser.email) {
+        profileDetailEmail.textContent = currentUser.email;
+    }
+    
+    // Load full user details (will update if API returns better data)
     await loadUserProfileDetails();
 }
 
