@@ -886,11 +886,28 @@ function showProductModal(materialId) {
     const isAdmin = currentUser && currentUser.userType === 'admin';
     
     modalTitle.textContent = material.material;
+    
+    // Parse photo - could be single string, JSON array, or base64
+    let photoUrl = null;
+    if (material.photo) {
+        try {
+            const parsed = JSON.parse(material.photo);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                photoUrl = parsed[0]; // Use first photo if array
+            } else {
+                photoUrl = material.photo;
+            }
+        } catch {
+            // Not JSON, use as-is (could be base64 or URL)
+            photoUrl = material.photo;
+        }
+    }
+    
     modalBody.innerHTML = `
         <!-- Full width image on top -->
         <div class="product-image" style="width: 100%; height: 400px; border-radius: 10px; overflow: hidden; margin-bottom: 1.25rem; background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%); border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-            ${material.photo ? 
-                `<img src="${material.photo}" alt="${material.material}" style="width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 0.75rem;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            ${photoUrl ? 
+                `<img src="${photoUrl}" alt="${material.material}" style="width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 0.75rem;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                  <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
                      <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
                      <span style="font-size: 0.875rem; font-weight: 500;">No Image</span>
