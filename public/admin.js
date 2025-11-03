@@ -306,7 +306,23 @@ function displayMaterialsGrid() {
     }
     
     gridContainer.innerHTML = materials.map(material => {
-        const imageUrl = material.photo || 'https://via.placeholder.com/400x300/f3f4f6/9ca3af?text=No+Image';
+        // Parse photo - could be JSON array or base64 string
+        let imageUrl = 'https://via.placeholder.com/400x300/f3f4f6/9ca3af?text=No+Image';
+        if (material.photo) {
+            try {
+                const parsed = JSON.parse(material.photo);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    imageUrl = parsed[0];
+                } else if (parsed && typeof parsed === 'string') {
+                    imageUrl = parsed;
+                } else {
+                    imageUrl = material.photo;
+                }
+            } catch {
+                // Not JSON, use as-is (could be base64 or URL)
+                imageUrl = material.photo;
+            }
+        }
         
         return `
             <div class="material-card">
@@ -359,8 +375,24 @@ function displayMaterialsTable() {
     }
     
     tableBody.innerHTML = materials.map(material => {
-        const imageHtml = material.photo ? 
-            `<img src="${material.photo}" alt="${material.material}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; margin-right: 8px;">` : 
+        // Parse photo for table view
+        let photoUrl = null;
+        if (material.photo) {
+            try {
+                const parsed = JSON.parse(material.photo);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    photoUrl = parsed[0];
+                } else if (parsed && typeof parsed === 'string') {
+                    photoUrl = parsed;
+                } else {
+                    photoUrl = material.photo;
+                }
+            } catch {
+                photoUrl = material.photo;
+            }
+        }
+        const imageHtml = photoUrl ? 
+            `<img src="${photoUrl}" alt="${material.material}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; margin-right: 8px;" onerror="this.style.display='none'">` : 
             `<div style="width: 40px; height: 40px; background: #e5e7eb; border-radius: 4px; margin-right: 8px; display: inline-block;"></div>`;
         
         return `

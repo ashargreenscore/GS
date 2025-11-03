@@ -1330,9 +1330,15 @@ app.get('/api/admin/users', async (req, res) => {
 
 app.get('/api/admin/materials', async (req, res) => {
   try {
+    if (!db) {
+      return res.status(503).json({ success: false, error: 'Database not initialized' });
+    }
+    
     const { projectId, listingType, sellerId, category } = req.query;
     
+    console.log('📦 Admin: Fetching all materials...');
     let materials = await db.getAllMaterials();
+    console.log(`✅ Admin: Retrieved ${materials.length} materials from database`);
     
     // Apply filters if provided
     if (projectId && projectId !== 'all') {

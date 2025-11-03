@@ -587,7 +587,7 @@ function displayGridView(filteredMaterials) {
                                  alt="${material.material} - Photo ${index + 1}" 
                                  class="slideshow-image ${index === 0 ? 'active' : ''}"
                                  data-index="${index}"
-                                 onerror="this.style.display='none'">
+                                 onerror="this.onerror=null; this.src=''; this.style.display='none';">
                         `).join('')}
                     </div>
                     ${photos.length > 1 ? `

@@ -1689,7 +1689,7 @@ class Database {
           COUNT(DISTINCT req.id) as pending_requests,
           COUNT(DISTINCT o.id) as completed_orders
         FROM materials m
-        JOIN users u ON m.seller_id = u.id
+        LEFT JOIN users u ON m.seller_id = u.id
         LEFT JOIN projects p ON m.project_id = p.id
         LEFT JOIN order_requests req ON m.id = req.material_id AND req.status = 'pending'
         LEFT JOIN orders o ON m.id = o.material_id

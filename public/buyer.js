@@ -327,12 +327,38 @@ async function loadCategories() {
 
 // Load materials from API
 async function loadMaterials() {
+    const productsGrid = document.getElementById('products-grid');
+    let loadingElement = null;
+    
     try {
+        // Show loading indicator with progress
+        if (productsGrid) {
+            productsGrid.innerHTML = `
+                <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">
+                    <div class="loading-spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #10b981; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                    <div style="width: 200px; background: #e5e7eb; border-radius: 10px; overflow: hidden; margin: 0 auto 1rem;">
+                        <div id="materials-progress-bar" style="width: 0%; background: linear-gradient(90deg, #10b981 0%, #059669 100%); height: 24px; transition: width 0.3s;"></div>
+                    </div>
+                    <p id="materials-loading-text" style="color: #6b7280; font-size: 0.875rem;">Loading materials... 0%</p>
+                </div>
+            `;
+            loadingElement = productsGrid.querySelector('div');
+        }
+        
+        updateMaterialsProgress(10, 'Connecting to server...');
+        
         const response = await fetch('/api/materials');
         if (!response.ok) throw new Error('Failed to load materials');
+        
+        updateMaterialsProgress(40, 'Receiving data...');
+        
         materials = await response.json();
         
+        updateMaterialsProgress(70, 'Processing materials...');
+        
         filteredMaterials = [...materials];
+        
+        updateMaterialsProgress(90, 'Rendering...');
         
         // Populate filters and display immediately
         populateProjectFilters();
@@ -340,6 +366,18 @@ async function loadMaterials() {
         populateCategoryFilters();
         displayMaterials();
         updateCategoryCounts();
+        
+        updateMaterialsProgress(100, 'Complete!');
+        
+        // Hide loading after brief delay
+        setTimeout(() => {
+            if (loadingElement && loadingElement.parentNode) {
+                loadingElement.style.opacity = '0';
+                setTimeout(() => {
+                    if (loadingElement.parentNode) loadingElement.remove();
+                }, 300);
+            }
+        }, 500);
     } catch (error) {
         console.error('Error loading materials:', error);
         const productsGrid = document.getElementById('products-grid');
@@ -348,10 +386,22 @@ async function loadMaterials() {
                 <div class="no-products">
                     <i class="fas fa-exclamation-triangle"></i>
                     <h3>Error loading materials</h3>
-                    <p>Please try refreshing the page.</p>
+                    <p>${error.message || 'Please try refreshing the page.'}</p>
                 </div>
             `;
         }
+    }
+}
+
+function updateMaterialsProgress(percent, message) {
+    const progressBar = document.getElementById('materials-progress-bar');
+    const loadingText = document.getElementById('materials-loading-text');
+    
+    if (progressBar) {
+        progressBar.style.width = percent + '%';
+    }
+    if (loadingText) {
+        loadingText.textContent = message + ' ' + percent + '%';
     }
 }
 
