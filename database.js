@@ -18,11 +18,32 @@ class Database {
     // Force IPv4 DNS resolution (required for IPv4-only environments like Render)
     dns.setDefaultResultOrder('ipv4first');
     
+    // Track initialization status
+    this.pool = null;
+    this.initializationPromise = null;
+    
     // Initialize connection pool asynchronously to resolve hostname to IPv4 first
-    this.initConnectionPool();
+    this.initializationPromise = this.initConnectionPool();
     
     // Initialize email service
     this.emailService = new EmailService();
+  }
+
+  // Ensure pool is initialized before use
+  async ensurePool() {
+    if (this.pool) {
+      return this.pool;
+    }
+    
+    if (this.initializationPromise) {
+      await this.initializationPromise;
+    }
+    
+    if (!this.pool) {
+      throw new Error('Database connection pool is not available. Please check DATABASE_URL configuration.');
+    }
+    
+    return this.pool;
   }
 
   async initConnectionPool() {
@@ -85,6 +106,11 @@ class Database {
   }
 
   async initTables() {
+    if (!this.pool) {
+      console.error('❌ Cannot initialize tables: Database connection pool not available');
+      return;
+    }
+    
     try {
       // Users table
       await this.pool.query(`
@@ -340,11 +366,12 @@ class Database {
 
   // User methods
   async createUser(userData) {
+    const pool = await this.ensurePool();
     const { email, password, name, userType, companyName } = userData;
     const passwordHash = await bcrypt.hash(password, 10);
     
     try {
-      const result = await this.pool.query(`
+      const result = await pool.query(`
         INSERT INTO users (id, email, password_hash, name, company_name, user_type)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
@@ -357,6 +384,11 @@ class Database {
   }
 
   async ensureAdminUser() {
+    if (!this.pool) {
+      // Pool not ready yet, skip admin user creation
+      return;
+    }
+    
     try {
       // Ensure the password hash is correct for "admin123"
       const adminPasswordHash = bcrypt.hashSync('admin123', 10);
@@ -368,7 +400,7 @@ class Database {
       
       if (result.rows.length === 0) {
         // Admin user doesn't exist, create it
-        await this.pool.query(`
+        await pool.query(`
           INSERT INTO users (id, email, password_hash, name, user_type, verification_status, company_name)
           VALUES ($1, $2, $3, $4, $5, $6, $7)
         `, ['admin-default', 'admin@greenscore.com', adminPasswordHash, 'System Admin', 'admin', 'verified', 'GreenScore System']);
@@ -384,7 +416,7 @@ class Database {
         if (!currentHashWorks) {
           // Current hash doesn't work, update it
           console.log('🔄 Updating admin user password hash...');
-          await this.pool.query(`
+          await pool.query(`
             UPDATE users 
             SET password_hash = $1, user_type = 'admin', verification_status = 'verified'
             WHERE email = 'admin@greenscore.com'
@@ -403,8 +435,9 @@ class Database {
   }
 
   async findUserByEmail(email) {
+    const pool = await this.ensurePool();
     try {
-      const result = await this.pool.query('SELECT * FROM users WHERE email = $1', [email]);
+      const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
       return result.rows[0] || null;
     } catch (error) {
       throw error;
@@ -412,8 +445,9 @@ class Database {
   }
 
   async findUserById(id) {
+    const pool = await this.ensurePool();
     try {
-      const result = await this.pool.query('SELECT * FROM users WHERE id = $1', [id]);
+      const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
       return result.rows[0] || null;
     } catch (error) {
       throw error;
@@ -426,8 +460,9 @@ class Database {
 
   // Project methods
   async createProject(projectData) {
+    const pool = await this.ensurePool();
     try {
-      await this.pool.query(`
+      await pool.query(`
         INSERT INTO projects (id, seller_id, name, location, description)
         VALUES ($1, $2, $3, $4, $5)
       `, [
@@ -446,7 +481,8 @@ class Database {
 
   async getProjectsBySeller(sellerId) {
     try {
-      const result = await this.pool.query(
+      const pool = await this.ensurePool();
+      const result = await pool.query(
         'SELECT * FROM projects WHERE seller_id = $1 ORDER BY created_at DESC',
         [sellerId]
       );
@@ -470,7 +506,7 @@ class Database {
         GROUP BY p.id
         ORDER BY p.created_at DESC
       `;
-      const result = await this.pool.query(query);
+      const result = await pool.query(query);
       return result.rows;
     } catch (error) {
       throw error;
@@ -479,7 +515,7 @@ class Database {
 
   async getProjectById(projectId) {
     try {
-      const result = await this.pool.query('SELECT * FROM projects WHERE id = $1', [projectId]);
+      const result = await pool.query('SELECT * FROM projects WHERE id = $1', [projectId]);
       return result.rows[0] || null;
     } catch (error) {
       throw error;
@@ -495,9 +531,10 @@ class Database {
 
   // Material methods
   async createMaterial(materialData) {
+    const pool = await this.ensurePool();
     try {
       const listingId = this.generateListingId();
-      await this.pool.query(`
+      await pool.query(`
         INSERT INTO materials (
           id, listing_id, seller_id, project_id, material, brand, category, condition,
           quantity, unit, price_today, mrp, price_purchased, inventory_value,
@@ -520,6 +557,7 @@ class Database {
   }
 
   async getMaterialsBySeller(sellerId, filters = {}) {
+    const pool = await this.ensurePool();
     try {
       let query = `
         SELECT m.*, 
@@ -552,7 +590,7 @@ class Database {
 
       query += ' ORDER BY m.created_at DESC';
 
-      const result = await this.pool.query(query, params);
+      const result = await pool.query(query, params);
       
       // Convert database fields to frontend-compatible names
       const materials = result.rows.map(row => ({
@@ -653,6 +691,7 @@ class Database {
   }
 
   async getMaterialsForBuyers(filters = {}) {
+    const pool = await this.ensurePool();
     try {
       let query = `
         SELECT m.*, 
@@ -680,7 +719,7 @@ class Database {
 
       query += ' ORDER BY m.created_at DESC';
 
-      const result = await this.pool.query(query, params);
+      const result = await pool.query(query, params);
       
       // Convert quantity back to qty and include seller info for notifications
       const materials = result.rows.map(row => ({
@@ -713,7 +752,7 @@ class Database {
 
   async updateMaterialListingType(materialId, listingType, targetProjectId = null) {
     try {
-      await this.pool.query(`
+      await pool.query(`
         UPDATE materials 
         SET listing_type = $1, updated_at = CURRENT_TIMESTAMP
         WHERE id = $2
@@ -727,9 +766,10 @@ class Database {
 
   // Bulk insert materials
   async createMaterialsBulk(materialsData) {
+    const pool = await this.ensurePool();
     console.log('💾 DATABASE: Starting bulk insert of', materialsData.length, 'materials');
     
-    const client = await this.pool.connect();
+    const client = await pool.connect();
     try {
       await client.query('BEGIN');
       
@@ -769,7 +809,7 @@ class Database {
   // Upload log methods
   async createUploadLog(logData) {
     try {
-      await this.pool.query(`
+      await pool.query(`
         INSERT INTO upload_logs (id, user_id, project_id, filename, file_type, total_rows, successful_rows, failed_rows, errors)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `, [
@@ -810,7 +850,7 @@ class Database {
         params.push(materialId);
       }
       
-      const result = await this.pool.query(query, params);
+      const result = await pool.query(query, params);
       return { success: true, changes: result.rowCount };
     } catch (error) {
       throw error;
@@ -818,7 +858,7 @@ class Database {
   }
 
   async updateMaterialQuantityAfterPurchase(materialId, quantityPurchased) {
-    const client = await this.pool.connect();
+    const pool = await this.ensurePool(); const client = await pool.connect();
     try {
       await client.query('BEGIN');
       
@@ -874,7 +914,7 @@ class Database {
       const { v4: uuidv4 } = require('uuid');
       const id = uuidv4();
       
-      await this.pool.query(
+      await pool.query(
         'INSERT INTO notifications (id, user_id, title, message, type, data) VALUES ($1, $2, $3, $4, $5, $6)',
         [id, userId, title, message, type, data ? JSON.stringify(data) : null]
       );
@@ -886,6 +926,7 @@ class Database {
   }
 
   async getUserNotifications(userId, unreadOnly = false) {
+    const pool = await this.ensurePool();
     try {
       let query = 'SELECT * FROM notifications WHERE user_id = $1';
       if (unreadOnly) {
@@ -893,7 +934,7 @@ class Database {
       }
       query += ' ORDER BY created_at DESC';
       
-      const result = await this.pool.query(query, [userId]);
+      const result = await pool.query(query, [userId]);
       
       const notifications = result.rows.map(row => ({
         ...row,
@@ -909,7 +950,7 @@ class Database {
 
   async markNotificationAsRead(notificationId) {
     try {
-      const result = await this.pool.query(
+      const result = await pool.query(
         'UPDATE notifications SET read = TRUE WHERE id = $1',
         [notificationId]
       );
@@ -922,7 +963,7 @@ class Database {
 
   async markAllNotificationsAsRead(userId) {
     try {
-      const result = await this.pool.query(
+      const result = await pool.query(
         'UPDATE notifications SET read = TRUE WHERE user_id = $1',
         [userId]
       );
@@ -935,12 +976,13 @@ class Database {
 
   // Order request management methods
   async createOrderRequest(requestData) {
+    const pool = await this.ensurePool();
     try {
       const { v4: uuidv4 } = require('uuid');
       const requestId = uuidv4();
       
       // First get material details for notification
-      const materialResult = await this.pool.query(
+      const materialResult = await pool.query(
         'SELECT material, listing_id FROM materials WHERE id = $1',
         [requestData.materialId]
       );
@@ -948,7 +990,7 @@ class Database {
       const material = materialResult.rows[0];
       
       // Create the order request
-      await this.pool.query(
+      await pool.query(
         `INSERT INTO order_requests (
           id, material_id, buyer_id, seller_id, quantity, unit_price, total_amount,
           buyer_company, buyer_contact_person, buyer_email, buyer_phone,
@@ -965,7 +1007,7 @@ class Database {
       // Create notification for seller
       const notificationId = uuidv4();
       try {
-        await this.pool.query(
+        await pool.query(
           `INSERT INTO notifications (
             id, user_id, title, message, type, related_id
           ) VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -995,6 +1037,7 @@ class Database {
   }
 
   async getOrderRequestsBySeller(sellerId) {
+    const pool = await this.ensurePool();
     try {
       const query = `
         SELECT 
@@ -1021,7 +1064,7 @@ class Database {
         ORDER BY r.created_at DESC
       `;
       
-      const result = await this.pool.query(query, [sellerId]);
+      const result = await pool.query(query, [sellerId]);
       console.log(`Found ${result.rows.length} order requests for seller ${sellerId}`);
       return result.rows;
     } catch (error) {
@@ -1043,7 +1086,7 @@ class Database {
         ORDER BY r.created_at DESC
       `;
       
-      const result = await this.pool.query(query, [materialId]);
+      const result = await pool.query(query, [materialId]);
       return result.rows;
     } catch (error) {
       throw error;
@@ -1056,7 +1099,7 @@ class Database {
       requestIds = [requestIds];
     }
     
-    const client = await this.pool.connect();
+    const pool = await this.ensurePool(); const client = await pool.connect();
     const results = [];
     let processedCount = 0;
     let successCount = 0;
@@ -1251,7 +1294,7 @@ class Database {
   async declineOrderRequest(requestId, sellerNotes = '') {
     try {
       // First get the order request details for notification
-      const requestResult = await this.pool.query('SELECT * FROM order_requests WHERE id = $1', [requestId]);
+      const requestResult = await pool.query('SELECT * FROM order_requests WHERE id = $1', [requestId]);
       
       if (requestResult.rows.length === 0) {
         throw new Error('Order request not found');
@@ -1260,7 +1303,7 @@ class Database {
       const request = requestResult.rows[0];
       
       // Update the order request status
-      await this.pool.query(
+      await pool.query(
         'UPDATE order_requests SET status = $1, seller_notes = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
         ['declined', sellerNotes, requestId]
       );
@@ -1269,7 +1312,7 @@ class Database {
       const { v4: uuidv4 } = require('uuid');
       const notificationId = uuidv4();
       try {
-        await this.pool.query(
+        await pool.query(
           `INSERT INTO notifications (
             id, user_id, title, message, type, related_id
           ) VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -1313,7 +1356,7 @@ class Database {
       query += ', updated_at = CURRENT_TIMESTAMP WHERE id = $3';
       params.push(orderId);
       
-      const result = await this.pool.query(query, params);
+      const result = await pool.query(query, params);
       return { success: true, changes: result.rowCount };
     } catch (error) {
       throw error;
@@ -1346,7 +1389,7 @@ class Database {
         ORDER BY o.created_at DESC
       `;
       
-      const result = await this.pool.query(query, [sellerId]);
+      const result = await pool.query(query, [sellerId]);
       return result.rows;
     } catch (error) {
       throw error;
@@ -1381,7 +1424,7 @@ class Database {
         ORDER BY o.created_at DESC
       `;
       
-      const result = await this.pool.query(query, [buyerId]);
+      const result = await pool.query(query, [buyerId]);
       
       // Normalize categories
       const normalizedRows = result.rows.map(row => ({
@@ -1422,7 +1465,7 @@ class Database {
         ORDER BY r.created_at DESC
       `;
       
-      const result = await this.pool.query(query, [buyerId]);
+      const result = await pool.query(query, [buyerId]);
       
       // Normalize categories
       const normalizedRows = result.rows.map(row => ({
@@ -1455,7 +1498,7 @@ class Database {
         ORDER BY th.created_at DESC
       `;
       
-      const result = await this.pool.query(query, [sellerId]);
+      const result = await pool.query(query, [sellerId]);
       return result.rows;
     } catch (error) {
       throw error;
@@ -1467,7 +1510,7 @@ class Database {
       const { v4: uuidv4 } = require('uuid');
       const transactionId = uuidv4();
       
-      await this.pool.query(
+      await pool.query(
         `INSERT INTO transaction_history (
           id, seller_id, material_id, listing_id, transaction_type, buyer_id, order_id,
           from_project_id, to_project_id, quantity, unit_price, total_amount,
@@ -1507,7 +1550,7 @@ class Database {
         ORDER BY u.created_at DESC
       `;
       
-      const result = await this.pool.query(query);
+      const result = await pool.query(query);
       return result.rows;
     } catch (error) {
       throw error;
@@ -1534,7 +1577,7 @@ class Database {
         ORDER BY m.created_at DESC
       `;
       
-      const result = await this.pool.query(query);
+      const result = await pool.query(query);
       
       // Normalize categories for all materials (e.g., "Tile" → "Tiles")
       const normalizedRows = result.rows.map(row => ({
@@ -1580,7 +1623,7 @@ class Database {
         ORDER BY r.created_at DESC
       `;
       
-      const result = await this.pool.query(query);
+      const result = await pool.query(query);
       return result.rows;
     } catch (error) {
       throw error;
@@ -1618,7 +1661,7 @@ class Database {
         ORDER BY o.created_at DESC
       `;
       
-      const result = await this.pool.query(query);
+      const result = await pool.query(query);
       return result.rows;
     } catch (error) {
       throw error;
@@ -1627,7 +1670,7 @@ class Database {
 
   async deleteMaterial(materialId) {
     try {
-      const result = await this.pool.query('DELETE FROM materials WHERE id = $1', [materialId]);
+      const result = await pool.query('DELETE FROM materials WHERE id = $1', [materialId]);
       return { success: true, changes: result.rowCount };
     } catch (error) {
       throw error;
@@ -1637,7 +1680,7 @@ class Database {
   async deleteMaterialBySeller(materialId, sellerId) {
     try {
       // First check if the material belongs to this seller
-      const materialResult = await this.pool.query('SELECT id, seller_id FROM materials WHERE id = $1', [materialId]);
+      const materialResult = await pool.query('SELECT id, seller_id FROM materials WHERE id = $1', [materialId]);
       
       if (materialResult.rows.length === 0) {
         throw new Error('Material not found');
@@ -1650,7 +1693,7 @@ class Database {
       }
       
       // Delete the material
-      const result = await this.pool.query('DELETE FROM materials WHERE id = $1 AND seller_id = $2', [materialId, sellerId]);
+      const result = await pool.query('DELETE FROM materials WHERE id = $1 AND seller_id = $2', [materialId, sellerId]);
       return { success: true, changes: result.rowCount };
     } catch (error) {
       throw error;
@@ -1664,7 +1707,7 @@ class Database {
       values.push(materialId);
       
       const query = `UPDATE materials SET ${fields}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`;
-      const result = await this.pool.query(query, values);
+      const result = await pool.query(query, values);
       return { success: true, changes: result.rowCount };
     } catch (error) {
       throw error;
@@ -1675,7 +1718,7 @@ class Database {
   async lockMaterialForEdit(materialId, userId) {
     try {
       // First check if material is already being edited
-      const materialResult = await this.pool.query(
+      const materialResult = await pool.query(
         'SELECT is_being_edited, edited_by, edit_started_at FROM materials WHERE id = $1',
         [materialId]
       );
@@ -1699,7 +1742,7 @@ class Database {
       }
       
       // Lock the material for editing
-      await this.pool.query(
+      await pool.query(
         'UPDATE materials SET is_being_edited = TRUE, edited_by = $1, edit_started_at = CURRENT_TIMESTAMP WHERE id = $2',
         [userId, materialId]
       );
@@ -1713,7 +1756,7 @@ class Database {
   // Unlock material after editing
   async unlockMaterial(materialId, userId) {
     try {
-      const result = await this.pool.query(
+      const result = await pool.query(
         'UPDATE materials SET is_being_edited = FALSE, edited_by = NULL, edit_started_at = NULL WHERE id = $1 AND (edited_by = $2 OR edited_by IS NULL)',
         [materialId, userId]
       );
@@ -1727,7 +1770,7 @@ class Database {
   async updateMaterialWithLock(materialId, userId, updateData) {
     try {
       // First check if user has lock on this material
-      const materialResult = await this.pool.query(
+      const materialResult = await pool.query(
         'SELECT is_being_edited, edited_by FROM materials WHERE id = $1',
         [materialId]
       );
@@ -1744,7 +1787,7 @@ class Database {
       }
       
       // Get current material values to calculate inventory_value
-      const currentResult = await this.pool.query(
+      const currentResult = await pool.query(
         'SELECT quantity, price_today FROM materials WHERE id = $1',
         [materialId]
       );
@@ -1785,7 +1828,7 @@ class Database {
       values.push(materialId);
       
       const query = `UPDATE materials SET ${fields}, updated_at = CURRENT_TIMESTAMP, is_being_edited = FALSE, edited_by = NULL, edit_started_at = NULL WHERE id = $${values.length}`;
-      const result = await this.pool.query(query, values);
+      const result = await pool.query(query, values);
       
       return { success: true, changes: result.rowCount };
     } catch (error) {
@@ -1797,7 +1840,7 @@ class Database {
   // Check if material is locked for editing
   async isMaterialLocked(materialId) {
     try {
-      const result = await this.pool.query(
+      const result = await pool.query(
         'SELECT is_being_edited, edited_by, edit_started_at FROM materials WHERE id = $1',
         [materialId]
       );
@@ -1816,7 +1859,7 @@ class Database {
         
         if (diffMinutes >= 15) {
           // Session timed out, automatically unlock
-          await this.pool.query(
+          await pool.query(
             'UPDATE materials SET is_being_edited = FALSE, edited_by = NULL, edit_started_at = NULL WHERE id = $1',
             [materialId]
           );
@@ -1867,7 +1910,7 @@ class Database {
       values.push(userId);
       
       const query = `UPDATE users SET ${fields}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`;
-      const result = await this.pool.query(query, values);
+      const result = await pool.query(query, values);
       return { success: true, changes: result.rowCount };
     } catch (error) {
       throw error;
@@ -1875,7 +1918,7 @@ class Database {
   }
 
   async deleteUserAndData(userId) {
-    const client = await this.pool.connect();
+    const pool = await this.ensurePool(); const client = await pool.connect();
     try {
       await client.query('BEGIN');
       
@@ -1906,7 +1949,7 @@ class Database {
 
   async updateOrderStatus(orderId, status) {
     try {
-      const result = await this.pool.query(
+      const result = await pool.query(
         'UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
         [status, orderId]
       );
@@ -1932,7 +1975,7 @@ class Database {
         LEFT JOIN users buyer ON r.buyer_id = buyer.id
         WHERE r.id = $1
       `;
-      const result = await this.pool.query(query, [requestId]);
+      const result = await pool.query(query, [requestId]);
       const request = result.rows[0];
 
       if (!request) {
@@ -1995,7 +2038,7 @@ class Database {
         JOIN users seller ON o.seller_id = seller.id
         WHERE o.id = $1
       `;
-      const result = await this.pool.query(query, [orderId]);
+      const result = await pool.query(query, [orderId]);
       const order = result.rows[0];
 
       if (!order) {
@@ -2055,7 +2098,7 @@ class Database {
         JOIN users seller ON r.seller_id = seller.id
         WHERE r.id = $1
       `;
-      const result = await this.pool.query(query, [requestId]);
+      const result = await pool.query(query, [requestId]);
       const request = result.rows[0];
 
       if (!request) {
@@ -2177,7 +2220,7 @@ class Database {
       };
       
       // Get all materials
-      const materialsResult = await this.pool.query('SELECT id, category, inventory_type FROM materials');
+      const materialsResult = await pool.query('SELECT id, category, inventory_type FROM materials');
       const materials = materialsResult.rows;
       
       let updated = 0;
@@ -2201,7 +2244,7 @@ class Database {
         
         // Update in database
         try {
-          await this.pool.query(
+          await pool.query(
             'UPDATE materials SET category = $1 WHERE id = $2',
             [newCategory, material.id]
           );
