@@ -35,9 +35,14 @@ class Database {
         console.warn('⚠️ Consider using Transaction Pooler (port 6543) for better compatibility.');
       }
       
-      // Parse connection string and resolve hostname to IPv4
-      const url = new URL(connectionString);
-      const hostname = url.hostname;
+      // Parse connection string manually to preserve password encoding
+      // Format: postgresql://user:password@hostname:port/database
+      const urlMatch = connectionString.match(/^postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/);
+      if (!urlMatch) {
+        throw new Error('Invalid DATABASE_URL format');
+      }
+      
+      const [, username, password, hostname, port, database] = urlMatch;
       
       // Resolve hostname to IPv4 address explicitly
       console.log(`🔍 Resolving ${hostname} to IPv4 address...`);
@@ -45,9 +50,8 @@ class Database {
       const ipv4Address = resolved.address;
       console.log(`✅ Resolved ${hostname} to IPv4: ${ipv4Address}`);
       
-      // Replace hostname with IPv4 address in connection string
-      url.hostname = ipv4Address;
-      const ipv4ConnectionString = url.toString();
+      // Reconstruct connection string with IPv4 address (preserve password encoding)
+      const ipv4ConnectionString = `postgresql://${username}:${password}@${ipv4Address}:${port}/${database}`;
       
       // Initialize PostgreSQL connection pool with IPv4 address
       this.pool = new Pool({
