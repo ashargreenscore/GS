@@ -1826,10 +1826,11 @@ class Database {
 
   // Lock material for editing
   async lockMaterialForEdit(materialId, userId) {
+    const pool = await this.ensurePool();
     try {
-      // First check if material is already being edited
+      // First check if material exists and get its seller_id
       const materialResult = await pool.query(
-        'SELECT is_being_edited, edited_by, edit_started_at FROM materials WHERE id = $1',
+        'SELECT is_being_edited, edited_by, edit_started_at, seller_id FROM materials WHERE id = $1',
         [materialId]
       );
       
@@ -1838,20 +1839,35 @@ class Database {
       }
       
       const material = materialResult.rows[0];
-        
-        // Check if already being edited by someone else
-        if (material.is_being_edited && material.edited_by !== userId) {
-          // Check if edit session has timed out (15 minutes)
-          const editStarted = new Date(material.edit_started_at);
-          const now = new Date();
-          const diffMinutes = (now - editStarted) / 1000 / 60;
-          
-          if (diffMinutes < 15) {
-          throw new Error('Material is currently being edited by another user');
+      const isOwner = material.seller_id === userId;
+      
+      // Check if already being edited by someone else
+      if (material.is_being_edited && material.edited_by !== userId) {
+        // If user is the owner, allow override (they own the material)
+        if (isOwner) {
+          console.log(`✅ Owner override: Material ${materialId} owned by ${userId}, clearing lock`);
+          // Clear the lock and proceed
+        } else {
+          // Check if edit session has timed out (5 minutes - reduced from 15)
+          if (material.edit_started_at) {
+            const editStarted = new Date(material.edit_started_at);
+            const now = new Date();
+            const diffMinutes = (now - editStarted) / 1000 / 60;
+            
+            // Allow override if lock is older than 5 minutes
+            if (diffMinutes >= 5) {
+              console.log(`✅ Lock expired (${Math.round(diffMinutes)} minutes old), allowing override`);
+            } else {
+              throw new Error('Material is currently being edited by another user');
+            }
+          } else {
+            // No timestamp, allow override (stale lock)
+            console.log('✅ Stale lock detected, allowing override');
           }
         }
-        
-        // Lock the material for editing
+      }
+      
+      // Lock the material for editing
       await pool.query(
         'UPDATE materials SET is_being_edited = TRUE, edited_by = $1, edit_started_at = CURRENT_TIMESTAMP WHERE id = $2',
         [userId, materialId]
