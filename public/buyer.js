@@ -471,7 +471,24 @@ function displayMaterials() {
     // Check if current user is admin
     const isAdmin = currentUser && currentUser.userType === 'admin';
     
-    productsGrid.innerHTML = filteredMaterials.map(material => `
+    productsGrid.innerHTML = filteredMaterials.map(material => {
+        // Parse photo - could be single string, JSON array, or base64
+        let photoUrl = null;
+        if (material.photo) {
+            try {
+                const parsed = JSON.parse(material.photo);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    photoUrl = parsed[0]; // Use first photo if array
+                } else {
+                    photoUrl = material.photo;
+                }
+            } catch {
+                // Not JSON, use as-is (could be base64 or URL)
+                photoUrl = material.photo;
+            }
+        }
+        
+        return `
         <div class="product-card" onclick="${material.is_being_edited ? '' : `showProductModal('${material.id}')`}" style="position: relative; ${material.is_being_edited ? 'opacity: 0.7; cursor: not-allowed;' : ''}">
             ${material.is_being_edited ? `
                 <div style="position: absolute; top: 10px; left: 10px; background: #ef4444; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; z-index: 10;">
@@ -484,8 +501,8 @@ function displayMaterials() {
                 </div>
             ` : ''}
             <div class="product-image">
-                ${material.photo ? 
-                    `<img src="${material.photo}" alt="${material.material}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                ${photoUrl ? 
+                    `<img src="${photoUrl}" alt="${material.material}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                      <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
                          <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem;"></i>
                          <span>No Image</span>
