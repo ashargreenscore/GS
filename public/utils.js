@@ -7,24 +7,33 @@
  * @returns {string} Formatted amount string
  */
 function formatIndianCurrency(amount, showCurrency = true) {
-    if (amount === null || amount === undefined || isNaN(amount)) {
+    // Convert to number if it's a string, handle null/undefined/empty
+    if (amount === null || amount === undefined || amount === '') {
         return showCurrency ? '₹0' : '0';
     }
     
-    const absAmount = Math.abs(amount);
+    // Convert to number (handles string numbers from database)
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : Number(amount);
+    
+    // Check if conversion resulted in a valid number
+    if (isNaN(numAmount) || !isFinite(numAmount)) {
+        return showCurrency ? '₹0' : '0';
+    }
+    
+    const absAmount = Math.abs(numAmount);
     const currencySymbol = showCurrency ? '₹' : '';
     
     if (absAmount >= 10000000) { // 1 crore = 10,000,000
-        const crores = (amount / 10000000).toFixed(2);
+        const crores = (numAmount / 10000000).toFixed(2);
         return `${currencySymbol}${crores} Cr`;
     } else if (absAmount >= 100000) { // 1 lac = 100,000
-        const lacs = (amount / 100000).toFixed(2);
+        const lacs = (numAmount / 100000).toFixed(2);
         return `${currencySymbol}${lacs} L`;
     } else if (absAmount >= 1000) { // 1 thousand
-        const thousands = (amount / 1000).toFixed(1);
+        const thousands = (numAmount / 1000).toFixed(1);
         return `${currencySymbol}${thousands}K`;
     } else {
-        return `${currencySymbol}${amount.toFixed(2)}`;
+        return `${currencySymbol}${numAmount.toFixed(2)}`;
     }
 }
 
@@ -34,23 +43,32 @@ function formatIndianCurrency(amount, showCurrency = true) {
  * @returns {string} Formatted number string
  */
 function formatIndianNumber(number) {
-    if (number === null || number === undefined || isNaN(number)) {
+    // Convert to number if it's a string, handle null/undefined/empty
+    if (number === null || number === undefined || number === '') {
         return '0';
     }
     
-    const absNumber = Math.abs(number);
+    // Convert to number (handles string numbers from database)
+    const numNumber = typeof number === 'string' ? parseFloat(number) : Number(number);
+    
+    // Check if conversion resulted in a valid number
+    if (isNaN(numNumber) || !isFinite(numNumber)) {
+        return '0';
+    }
+    
+    const absNumber = Math.abs(numNumber);
     
     if (absNumber >= 10000000) { // 1 crore
-        const crores = (number / 10000000).toFixed(2);
+        const crores = (numNumber / 10000000).toFixed(2);
         return `${crores} Cr`;
     } else if (absNumber >= 100000) { // 1 lac
-        const lacs = (number / 100000).toFixed(2);
+        const lacs = (numNumber / 100000).toFixed(2);
         return `${lacs} L`;
     } else if (absNumber >= 1000) { // 1 thousand
-        const thousands = (number / 1000).toFixed(1);
+        const thousands = (numNumber / 1000).toFixed(1);
         return `${thousands}K`;
     } else {
-        return number.toLocaleString('en-IN');
+        return numNumber.toLocaleString('en-IN');
     }
 }
 
