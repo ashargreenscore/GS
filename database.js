@@ -1694,7 +1694,9 @@ class Database {
         ORDER BY m.created_at DESC
       `;
       
+      console.log('📦 Executing getAllMaterials query...');
       const result = await pool.query(query);
+      console.log(`✅ getAllMaterials: Retrieved ${result.rows.length} materials from database`);
       
       // Normalize categories for all materials (e.g., "Tile" → "Tiles")
       const normalizedRows = result.rows.map(row => ({
@@ -1706,6 +1708,8 @@ class Database {
       
       return normalizedRows;
     } catch (error) {
+      console.error('❌ Error in getAllMaterials:', error.message);
+      console.error('❌ Error stack:', error.stack);
       throw error;
     }
   }

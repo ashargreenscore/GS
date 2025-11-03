@@ -1331,6 +1331,7 @@ app.get('/api/admin/users', async (req, res) => {
 app.get('/api/admin/materials', async (req, res) => {
   try {
     if (!db) {
+      console.error('❌ Database not initialized');
       return res.status(503).json({ success: false, error: 'Database not initialized' });
     }
     
@@ -1357,10 +1358,16 @@ app.get('/api/admin/materials', async (req, res) => {
       materials = materials.filter(m => m.category === category);
     }
     
+    console.log(`✅ Admin: Returning ${materials.length} materials after filtering`);
     res.json({ success: true, materials });
   } catch (error) {
-    console.error('❌ Get all materials error:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch materials' });
+    console.error('❌ Get all materials error:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch materials',
+      message: error.message || 'Unknown error occurred'
+    });
   }
 });
 

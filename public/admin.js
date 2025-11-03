@@ -296,24 +296,26 @@ async function loadMaterials() {
                 }
             }, 100);
         } else {
-            console.error('Failed to load materials:', result.error);
+            console.error('Failed to load materials:', result);
             materials = [];
+            const errorMessage = result.error || result.message || 'Unknown error occurred';
             if (gridContainer) {
-                gridContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: #ef4444;"><i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 1rem;"></i><p>Failed to load materials: ' + (result.error || 'Unknown error') + '</p></div>';
+                gridContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: #ef4444;"><i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 1rem;"></i><p style="margin-bottom: 0.5rem;">Failed to load materials</p><p style="font-size: 0.875rem; color: #9ca3af;">' + errorMessage + '</p></div>';
             }
             if (tableContainer) {
-                tableContainer.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 3rem; color: #ef4444;">Failed to load materials</td></tr>';
+                tableContainer.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 3rem; color: #ef4444;"><i class="fas fa-exclamation-triangle"></i><br>Failed to load materials<br><small style="color: #9ca3af;">' + errorMessage + '</small></td></tr>';
             }
         }
     } catch (error) {
         console.error('Error loading materials:', error);
         const gridContainer = document.getElementById('materials-grid');
         const tableContainer = document.getElementById('materials-table-body');
+        const errorMessage = error.message || 'Network error or server unavailable';
         if (gridContainer) {
-            gridContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: #ef4444;"><i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 1rem;"></i><p>Error: ' + error.message + '</p></div>';
+            gridContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: #ef4444;"><i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 1rem;"></i><p style="margin-bottom: 0.5rem;">Error loading materials</p><p style="font-size: 0.875rem; color: #9ca3af;">' + errorMessage + '</p><button onclick="loadMaterials()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">Retry</button></div>';
         }
         if (tableContainer) {
-            tableContainer.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 3rem; color: #ef4444;">Error loading materials</td></tr>';
+            tableContainer.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 3rem; color: #ef4444;"><i class="fas fa-exclamation-triangle"></i><br>Error loading materials<br><small style="color: #9ca3af;">' + errorMessage + '</small><br><button onclick="loadMaterials()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">Retry</button></td></tr>';
         }
         materials = [];
     }
