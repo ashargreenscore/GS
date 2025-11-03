@@ -1,6 +1,9 @@
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const EmailService = require('./EmailService');
+const dns = require('dns');
+const { promisify } = require('util');
+const dnsLookup = promisify(dns.lookup);
 
 class Database {
   constructor() {
@@ -13,48 +16,68 @@ class Database {
     }
     
     // Force IPv4 DNS resolution (required for IPv4-only environments like Render)
-    // Supabase direct connection uses IPv6, but Transaction Pooler (port 6543) works with IPv4
-    const dns = require('dns');
     dns.setDefaultResultOrder('ipv4first');
     
-    // Validate connection string uses Transaction Pooler (port 6543) for Supabase
-    const connectionString = process.env.DATABASE_URL;
-    if (connectionString.includes('supabase') && connectionString.includes(':5432')) {
-      console.warn('⚠️ WARNING: Direct connection (port 5432) may not work with IPv4-only networks.');
-      console.warn('⚠️ Consider using Transaction Pooler (port 6543) for better compatibility.');
-    }
-    
-    // Initialize PostgreSQL connection pool
-    this.pool = new Pool({
-      connectionString: connectionString,
-      ssl: connectionString?.includes('supabase') ? { rejectUnauthorized: false } : false,
-      connectionTimeoutMillis: 10000, // 10 second timeout
-    });
-    
-    // Handle connection errors
-    this.pool.on('error', (err) => {
-      console.error('❌ Unexpected error on idle PostgreSQL client:', err);
-    });
-    
-    // Test connection
-    this.pool.query('SELECT NOW()')
-      .then(() => {
-        console.log('✅ Connected to PostgreSQL database');
-      })
-      .catch((err) => {
-        console.error('❌ Failed to connect to PostgreSQL:', err.message);
-        console.error('Please check your DATABASE_URL connection string');
-        if (err.code === 'ENETUNREACH' || err.message.includes('IPv6')) {
-          console.error('💡 TIP: Use Supabase Transaction Pooler (port 6543) instead of Direct (port 5432)');
-          console.error('💡 Transaction Pooler is IPv4 compatible and works with Render');
-        }
-      });
+    // Initialize connection pool asynchronously to resolve hostname to IPv4 first
+    this.initConnectionPool();
     
     // Initialize email service
     this.emailService = new EmailService();
-    
-    // Initialize tables asynchronously
-    this.initTables();
+  }
+
+  async initConnectionPool() {
+    try {
+      const connectionString = process.env.DATABASE_URL;
+      
+      // Validate connection string uses Transaction Pooler (port 6543) for Supabase
+      if (connectionString.includes('supabase') && connectionString.includes(':5432')) {
+        console.warn('⚠️ WARNING: Direct connection (port 5432) may not work with IPv4-only networks.');
+        console.warn('⚠️ Consider using Transaction Pooler (port 6543) for better compatibility.');
+      }
+      
+      // Parse connection string and resolve hostname to IPv4
+      const url = new URL(connectionString);
+      const hostname = url.hostname;
+      
+      // Resolve hostname to IPv4 address explicitly
+      console.log(`🔍 Resolving ${hostname} to IPv4 address...`);
+      const resolved = await dnsLookup(hostname, { family: 4 });
+      const ipv4Address = resolved.address;
+      console.log(`✅ Resolved ${hostname} to IPv4: ${ipv4Address}`);
+      
+      // Replace hostname with IPv4 address in connection string
+      url.hostname = ipv4Address;
+      const ipv4ConnectionString = url.toString();
+      
+      // Initialize PostgreSQL connection pool with IPv4 address
+      this.pool = new Pool({
+        connectionString: ipv4ConnectionString,
+        ssl: connectionString?.includes('supabase') ? { rejectUnauthorized: false } : false,
+        connectionTimeoutMillis: 10000, // 10 second timeout
+      });
+      
+      // Handle connection errors
+      this.pool.on('error', (err) => {
+        console.error('❌ Unexpected error on idle PostgreSQL client:', err);
+      });
+      
+      // Test connection
+      await this.pool.query('SELECT NOW()');
+      console.log('✅ Connected to PostgreSQL database');
+      
+      // Initialize tables asynchronously
+      await this.initTables();
+    } catch (err) {
+      console.error('❌ Failed to connect to PostgreSQL:', err.message);
+      console.error('Please check your DATABASE_URL connection string');
+      if (err.code === 'ENETUNREACH' || err.message.includes('IPv6') || err.code === 'ENOTFOUND') {
+        console.error('💡 TIP: Use Supabase Transaction Pooler (port 6543) instead of Direct (port 5432)');
+        console.error('💡 Transaction Pooler is IPv4 compatible and works with Render');
+        console.error('💡 Make sure DATABASE_URL uses Transaction Pooler method in Supabase dashboard');
+      }
+      // Don't throw - allow the application to start and retry later
+      this.pool = null;
+    }
   }
 
   async initTables() {
