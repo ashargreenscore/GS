@@ -365,7 +365,8 @@ async function loadMaterials() {
         
         updateMaterialsProgress(40, 'Receiving data...');
         
-        materials = await response.json();
+        const data = await response.json();
+        materials = Array.isArray(data) ? data : [];
         
         updateMaterialsProgress(70, 'Processing materials...');
         
@@ -373,24 +374,26 @@ async function loadMaterials() {
         
         updateMaterialsProgress(90, 'Rendering...');
         
-        // Populate filters and display immediately
+        // Populate filters and display immediately (displayMaterials handles empty state)
         populateProjectFilters();
         populateLocationFilters();
         populateCategoryFilters();
-        displayMaterials();
+        displayMaterials(); // This will show "No materials found" if empty
         updateCategoryCounts();
         
         updateMaterialsProgress(100, 'Complete!');
         
-        // Hide loading after brief delay
+        // Always clear loading state after displayMaterials runs (handles both empty and non-empty)
         setTimeout(() => {
-            if (loadingElement && loadingElement.parentNode) {
-                loadingElement.style.opacity = '0';
-                setTimeout(() => {
-                    if (loadingElement.parentNode) loadingElement.remove();
-                }, 300);
+            // displayMaterials() replaces the loading HTML, but ensure we clear any remaining loading elements
+            const productsGrid = document.getElementById('products-grid');
+            if (productsGrid) {
+                const remainingLoading = productsGrid.querySelector('.loading-spinner');
+                if (remainingLoading && remainingLoading.parentNode) {
+                    remainingLoading.parentNode.remove();
+                }
             }
-        }, 500);
+        }, 100);
     } catch (error) {
         console.error('Error loading materials:', error);
         const productsGrid = document.getElementById('products-grid');
