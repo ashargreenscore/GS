@@ -16,11 +16,22 @@ This guide will help you migrate from SQLite to PostgreSQL (Supabase).
 
 ## Step 2: Get Database Connection String
 
+⚠️ **IMPORTANT: Use Session Pooler (NOT Direct Connection)**
+
+Render and many hosting providers are IPv4-only. Supabase's Direct connection (port 5432) uses IPv6 and won't work. You MUST use Session Pooler (port 6543).
+
 1. In your Supabase project dashboard, go to **Settings** → **Database**
 2. Scroll down to **Connection string**
 3. Click on **URI** tab
-4. Copy the connection string (looks like: `postgresql://postgres:[YOUR-PASSWORD]@db.xxx.supabase.co:5432/postgres`)
-5. Replace `[YOUR-PASSWORD]` with your actual database password
+4. **Change "Method" dropdown from "Direct connection" to "Session Pooler"**
+5. Copy the connection string (should now show port **6543**, like: `postgresql://postgres:[YOUR-PASSWORD]@db.xxx.supabase.co:6543/postgres`)
+6. Replace `[YOUR-PASSWORD]` with your actual database password
+7. ⚠️ **DO NOT use port 5432** (Direct connection) - it's not IPv4 compatible!
+
+**Why Session Pooler?**
+- ✅ IPv4 compatible (works with Render, Railway, etc.)
+- ✅ Better for serverless/stateless applications
+- ✅ Recommended by Supabase for production use
 
 ## Step 3: Configure Environment Variables
 

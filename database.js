@@ -12,10 +12,23 @@ class Database {
       throw new Error('DATABASE_URL environment variable is required');
     }
     
+    // Force IPv4 DNS resolution (required for IPv4-only environments like Render)
+    // Supabase direct connection uses IPv6, but Session Pooler (port 6543) works with IPv4
+    const dns = require('dns');
+    dns.setDefaultResultOrder('ipv4first');
+    
+    // Validate connection string uses Session Pooler (port 6543) for Supabase
+    const connectionString = process.env.DATABASE_URL;
+    if (connectionString.includes('supabase') && connectionString.includes(':5432')) {
+      console.warn('⚠️ WARNING: Direct connection (port 5432) may not work with IPv4-only networks.');
+      console.warn('⚠️ Consider using Session Pooler (port 6543) for better compatibility.');
+    }
+    
     // Initialize PostgreSQL connection pool
     this.pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : false
+      connectionString: connectionString,
+      ssl: connectionString?.includes('supabase') ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 10000, // 10 second timeout
     });
     
     // Handle connection errors
@@ -31,6 +44,10 @@ class Database {
       .catch((err) => {
         console.error('❌ Failed to connect to PostgreSQL:', err.message);
         console.error('Please check your DATABASE_URL connection string');
+        if (err.code === 'ENETUNREACH' || err.message.includes('IPv6')) {
+          console.error('💡 TIP: Use Supabase Session Pooler (port 6543) instead of Direct (port 5432)');
+          console.error('💡 Session Pooler is IPv4 compatible and works with Render');
+        }
       });
     
     // Initialize email service
