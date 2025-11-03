@@ -1855,15 +1855,20 @@ class Database {
         } else {
           // Check if edit session has timed out (5 minutes - reduced from 15)
           if (material.edit_started_at) {
-            const editStarted = new Date(material.edit_started_at);
-            const now = new Date();
-            const diffMinutes = (now - editStarted) / 1000 / 60;
-            
-            // Allow override if lock is older than 5 minutes
-            if (diffMinutes >= 5) {
-              console.log(`✅ Lock expired (${Math.round(diffMinutes)} minutes old), allowing override`);
-            } else {
-              throw new Error('Material is currently being edited by another user');
+            try {
+              const editStarted = new Date(material.edit_started_at);
+              const now = new Date();
+              const diffMinutes = (now - editStarted) / 1000 / 60;
+              
+              // Allow override if lock is older than 5 minutes
+              if (diffMinutes >= 5) {
+                console.log(`✅ Lock expired (${Math.round(diffMinutes)} minutes old), allowing override`);
+              } else {
+                throw new Error('Material is currently being edited by another user');
+              }
+            } catch (dateError) {
+              // Invalid date, treat as stale lock
+              console.log('✅ Invalid lock timestamp, treating as stale and allowing override');
             }
           } else {
             // No timestamp, allow override (stale lock)
