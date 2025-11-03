@@ -6,6 +6,8 @@ let categories = [];
 let cart = [];
 let filteredMaterials = [];
 let notifications = [];
+// Cache for parsed photos to avoid repeated JSON.parse() calls
+const photoCache = new Map();
 
 // Initialize the buyer marketplace
 document.addEventListener('DOMContentLoaded', function() {
@@ -448,6 +450,40 @@ function selectCategory(category) {
     filterMaterials();
 }
 
+// Helper function to parse photo with caching for performance
+function parsePhoto(photoString) {
+    if (!photoString) return null;
+    
+    // Check cache first
+    if (photoCache.has(photoString)) {
+        return photoCache.get(photoString);
+    }
+    
+    let photoUrl = null;
+    try {
+        const parsed = JSON.parse(photoString);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            photoUrl = parsed[0]; // Use first photo if array
+        } else {
+            photoUrl = photoString;
+        }
+    } catch {
+        // Not JSON, use as-is (could be base64 or URL)
+        photoUrl = photoString;
+    }
+    
+    // Cache result (limit cache size to prevent memory issues)
+    if (photoCache.size > 1000) {
+        // Clear oldest 50% of cache
+        const entries = Array.from(photoCache.entries()).slice(500);
+        photoCache.clear();
+        entries.forEach(([key, value]) => photoCache.set(key, value));
+    }
+    photoCache.set(photoString, photoUrl);
+    
+    return photoUrl;
+}
+
 // Display materials in grid
 function displayMaterials() {
     const productsGrid = document.getElementById('products-grid');
@@ -472,21 +508,8 @@ function displayMaterials() {
     const isAdmin = currentUser && currentUser.userType === 'admin';
     
     productsGrid.innerHTML = filteredMaterials.map(material => {
-        // Parse photo - could be single string, JSON array, or base64
-        let photoUrl = null;
-        if (material.photo) {
-            try {
-                const parsed = JSON.parse(material.photo);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    photoUrl = parsed[0]; // Use first photo if array
-                } else {
-                    photoUrl = material.photo;
-                }
-            } catch {
-                // Not JSON, use as-is (could be base64 or URL)
-                photoUrl = material.photo;
-            }
-        }
+        // Parse photo with caching for performance
+        const photoUrl = parsePhoto(material.photo);
         
         return `
         <div class="product-card" onclick="${material.is_being_edited ? '' : `showProductModal('${material.id}')`}" style="position: relative; ${material.is_being_edited ? 'opacity: 0.7; cursor: not-allowed;' : ''}">
@@ -887,21 +910,8 @@ function showProductModal(materialId) {
     
     modalTitle.textContent = material.material;
     
-    // Parse photo - could be single string, JSON array, or base64
-    let photoUrl = null;
-    if (material.photo) {
-        try {
-            const parsed = JSON.parse(material.photo);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                photoUrl = parsed[0]; // Use first photo if array
-            } else {
-                photoUrl = material.photo;
-            }
-        } catch {
-            // Not JSON, use as-is (could be base64 or URL)
-            photoUrl = material.photo;
-        }
-    }
+    // Parse photo using cached helper function
+    const photoUrl = parsePhoto(material.photo);
     
     modalBody.innerHTML = `
         <!-- Full width image on top -->
@@ -1973,16 +1983,8 @@ function displayProfileOrders() {
         const recentOrdersList = profileOrders.slice(0, 3);
         if (recentOrdersList.length > 0) {
             recentOrders.innerHTML = recentOrdersList.map(order => {
-                let photos = [];
-                if (order.photo) {
-                    try {
-                        photos = JSON.parse(order.photo);
-                        if (!Array.isArray(photos)) photos = [order.photo];
-                    } catch {
-                        photos = [order.photo];
-                    }
-                }
-                const firstPhoto = photos.length > 0 ? photos[0] : null;
+                // Parse photo using cached helper
+                const firstPhoto = parsePhoto(order.photo);
                 
                 return `
                     <div style="display: flex; gap: 1rem; padding: 1rem; border-bottom: 1px solid #e5e7eb; align-items: center;">
