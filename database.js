@@ -93,7 +93,7 @@ class Database {
       const safeConnectionString = `postgresql://${username}:${encodedPassword}@${hostname}:${port}/${database}`;
       
       // Try to resolve hostname to IPv4 address, fallback to original if DNS fails
-      let finalConnectionString = connectionString;
+      let finalConnectionString = safeConnectionString;
       
       try {
         console.log(`🔍 Resolving ${hostname} to IPv4 address...`);
@@ -101,14 +101,14 @@ class Database {
         const ipv4Address = resolved.address;
         console.log(`✅ Resolved ${hostname} to IPv4: ${ipv4Address}`);
         
-        // Reconstruct connection string with IPv4 address (preserve password encoding)
-        finalConnectionString = `postgresql://${username}:${password}@${ipv4Address}:${port}/${database}`;
+        // Reconstruct connection string with IPv4 address (use encoded password)
+        finalConnectionString = `postgresql://${username}:${encodedPassword}@${ipv4Address}:${port}/${database}`;
       } catch (dnsError) {
-        // DNS resolution failed, use original hostname
+        // DNS resolution failed, use hostname with encoded password
         console.warn(`⚠️ DNS resolution failed for ${hostname}, using hostname directly:`, dnsError.message);
         console.warn('⚠️ This may work if the hostname resolves correctly at connection time');
-        // Keep original connectionString
-        finalConnectionString = connectionString;
+        // Use safeConnectionString which has properly encoded password
+        finalConnectionString = safeConnectionString;
       }
       
       // Initialize PostgreSQL connection pool with optimized settings for Supabase
