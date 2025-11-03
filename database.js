@@ -71,13 +71,16 @@ class Database {
       }
       
       // Parse connection string manually to preserve password encoding
-      // Format: postgresql://user:password@hostname:port/database
+      // Supports two formats:
+      // 1. postgresql://postgres:password@db.xxx.supabase.co:6543/postgres
+      // 2. postgresql://postgres.xxx:password@aws-x-region.pooler.supabase.com:6543/postgres
       const urlMatch = connectionString.match(/^postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/);
       if (!urlMatch) {
-        throw new Error('Invalid DATABASE_URL format');
+        throw new Error('Invalid DATABASE_URL format. Expected: postgresql://user:password@host:port/database');
       }
       
       const [, username, password, hostname, port, database] = urlMatch;
+      console.log(`📋 Parsed connection: user=${username}, host=${hostname}, port=${port}, db=${database}`);
       
       // Try to resolve hostname to IPv4 address, fallback to original if DNS fails
       let finalConnectionString = connectionString;
@@ -153,18 +156,18 @@ class Database {
     }
     
     try {
-      // Users table
+    // Users table
       await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS users (
-          id TEXT PRIMARY KEY,
-          email TEXT UNIQUE NOT NULL,
-          password_hash TEXT NOT NULL,
-          name TEXT NOT NULL,
-          company_name TEXT,
-          phone TEXT,
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        name TEXT NOT NULL,
+        company_name TEXT,
+        phone TEXT,
           designation TEXT,
           user_type TEXT NOT NULL,
-          verification_status TEXT DEFAULT 'pending',
+        verification_status TEXT DEFAULT 'pending',
           is_active BOOLEAN DEFAULT TRUE,
           last_login TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -213,190 +216,190 @@ class Database {
         this.ensureAdminUser();
       }, 500);
 
-      // Projects table
+    // Projects table
       await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS projects (
-          id TEXT PRIMARY KEY,
-          seller_id TEXT NOT NULL,
-          name TEXT NOT NULL,
-          location TEXT,
-          description TEXT,
-          status TEXT DEFAULT 'active',
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        seller_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        location TEXT,
+        description TEXT,
+        status TEXT DEFAULT 'active',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (seller_id) REFERENCES users (id)
-        )
-      `);
+        FOREIGN KEY (seller_id) REFERENCES users (id)
+      )
+    `);
 
-      // Materials table
+    // Materials table
       await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS materials (
-          id TEXT PRIMARY KEY,
+      CREATE TABLE IF NOT EXISTS materials (
+        id TEXT PRIMARY KEY,
           listing_id TEXT UNIQUE,
-          seller_id TEXT NOT NULL,
-          project_id TEXT,
-          material TEXT NOT NULL,
-          brand TEXT,
-          category TEXT,
-          condition TEXT DEFAULT 'good',
-          quantity INTEGER NOT NULL,
-          unit TEXT DEFAULT 'pcs',
+        seller_id TEXT NOT NULL,
+        project_id TEXT,
+        material TEXT NOT NULL,
+        brand TEXT,
+        category TEXT,
+        condition TEXT DEFAULT 'good',
+        quantity INTEGER NOT NULL,
+        unit TEXT DEFAULT 'pcs',
           price_today NUMERIC NOT NULL,
           mrp NUMERIC DEFAULT 0,
           price_purchased NUMERIC DEFAULT 0,
           inventory_value NUMERIC DEFAULT 0,
-          inventory_type TEXT DEFAULT 'surplus',
-          listing_type TEXT DEFAULT 'resale',
-          acquisition_type TEXT DEFAULT 'purchased',
-          specs TEXT,
-          photo TEXT,
-          specs_photo TEXT,
-          dimensions TEXT,
+        inventory_type TEXT DEFAULT 'surplus',
+        listing_type TEXT DEFAULT 'resale',
+        acquisition_type TEXT DEFAULT 'purchased',
+        specs TEXT,
+        photo TEXT,
+        specs_photo TEXT,
+        dimensions TEXT,
           weight NUMERIC,
-          location_details TEXT,
+        location_details TEXT,
           is_being_edited BOOLEAN DEFAULT FALSE,
           edit_started_at TIMESTAMP,
-          edited_by TEXT,
+        edited_by TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (seller_id) REFERENCES users (id),
-          FOREIGN KEY (project_id) REFERENCES projects (id),
-          FOREIGN KEY (edited_by) REFERENCES users (id)
-        )
-      `);
+        FOREIGN KEY (seller_id) REFERENCES users (id),
+        FOREIGN KEY (project_id) REFERENCES projects (id),
+        FOREIGN KEY (edited_by) REFERENCES users (id)
+      )
+    `);
 
-      // Order requests table (simple purchase requests)
+    // Order requests table (simple purchase requests)
       await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS order_requests (
-          id TEXT PRIMARY KEY,
-          material_id TEXT NOT NULL,
-          buyer_id TEXT NOT NULL,
-          seller_id TEXT NOT NULL,
-          quantity INTEGER NOT NULL,
+      CREATE TABLE IF NOT EXISTS order_requests (
+        id TEXT PRIMARY KEY,
+        material_id TEXT NOT NULL,
+        buyer_id TEXT NOT NULL,
+        seller_id TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
           unit_price NUMERIC NOT NULL,
           total_amount NUMERIC NOT NULL,
           status TEXT DEFAULT 'pending',
-          buyer_company TEXT,
-          buyer_contact_person TEXT,
-          buyer_email TEXT,
-          buyer_phone TEXT,
-          delivery_address TEXT,
-          delivery_notes TEXT,
-          seller_notes TEXT,
+        buyer_company TEXT,
+        buyer_contact_person TEXT,
+        buyer_email TEXT,
+        buyer_phone TEXT,
+        delivery_address TEXT,
+        delivery_notes TEXT,
+        seller_notes TEXT,
           fulfilled_quantity INTEGER,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           approved_at TIMESTAMP,
-          FOREIGN KEY (material_id) REFERENCES materials (id),
-          FOREIGN KEY (buyer_id) REFERENCES users (id),
-          FOREIGN KEY (seller_id) REFERENCES users (id)
-        )
-      `);
+        FOREIGN KEY (material_id) REFERENCES materials (id),
+        FOREIGN KEY (buyer_id) REFERENCES users (id),
+        FOREIGN KEY (seller_id) REFERENCES users (id)
+      )
+    `);
 
-      // Orders table (for approved order requests)
+    // Orders table (for approved order requests)
       await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS orders (
-          id TEXT PRIMARY KEY,
-          order_request_id TEXT NOT NULL,
-          buyer_id TEXT NOT NULL,
-          seller_id TEXT NOT NULL,
-          material_id TEXT NOT NULL,
-          quantity INTEGER NOT NULL,
+      CREATE TABLE IF NOT EXISTS orders (
+        id TEXT PRIMARY KEY,
+        order_request_id TEXT NOT NULL,
+        buyer_id TEXT NOT NULL,
+        seller_id TEXT NOT NULL,
+        material_id TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
           unit_price NUMERIC NOT NULL,
           total_amount NUMERIC NOT NULL,
           platform_fee NUMERIC NOT NULL,
           status TEXT DEFAULT 'approved',
-          shipping_address TEXT,
-          delivery_notes TEXT,
-          tracking_number TEXT,
+        shipping_address TEXT,
+        delivery_notes TEXT,
+        tracking_number TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           shipped_at TIMESTAMP,
           delivered_at TIMESTAMP,
-          FOREIGN KEY (order_request_id) REFERENCES order_requests (id),
-          FOREIGN KEY (material_id) REFERENCES materials (id),
-          FOREIGN KEY (buyer_id) REFERENCES users (id),
-          FOREIGN KEY (seller_id) REFERENCES users (id)
-        )
-      `);
+        FOREIGN KEY (order_request_id) REFERENCES order_requests (id),
+        FOREIGN KEY (material_id) REFERENCES materials (id),
+        FOREIGN KEY (buyer_id) REFERENCES users (id),
+        FOREIGN KEY (seller_id) REFERENCES users (id)
+      )
+    `);
 
-      // Order items table
+    // Order items table
       await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS order_items (
-          id TEXT PRIMARY KEY,
-          order_id TEXT NOT NULL,
-          material_id TEXT NOT NULL,
-          quantity INTEGER NOT NULL,
+      CREATE TABLE IF NOT EXISTS order_items (
+        id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL,
+        material_id TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
           unit_price NUMERIC NOT NULL,
           total_price NUMERIC NOT NULL,
-          FOREIGN KEY (order_id) REFERENCES orders (id),
-          FOREIGN KEY (material_id) REFERENCES materials (id)
-        )
-      `);
+        FOREIGN KEY (order_id) REFERENCES orders (id),
+        FOREIGN KEY (material_id) REFERENCES materials (id)
+      )
+    `);
 
-      // Upload logs table
+    // Upload logs table
       await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS upload_logs (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          project_id TEXT,
-          filename TEXT NOT NULL,
-          file_type TEXT NOT NULL,
-          total_rows INTEGER,
-          successful_rows INTEGER,
-          failed_rows INTEGER,
-          errors TEXT,
+      CREATE TABLE IF NOT EXISTS upload_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        project_id TEXT,
+        filename TEXT NOT NULL,
+        file_type TEXT NOT NULL,
+        total_rows INTEGER,
+        successful_rows INTEGER,
+        failed_rows INTEGER,
+        errors TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users (id),
-          FOREIGN KEY (project_id) REFERENCES projects (id)
-        )
-      `);
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (project_id) REFERENCES projects (id)
+      )
+    `);
 
       // Internal transfers table - REMOVED (feature no longer used)
 
-      // Notifications table
+    // Notifications table
       await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS notifications (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          title TEXT NOT NULL,
-          message TEXT NOT NULL,
-          type TEXT DEFAULT 'info',
+      CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        type TEXT DEFAULT 'info',
           read BOOLEAN DEFAULT FALSE,
-          data TEXT,
-          related_id TEXT,
+        data TEXT,
+        related_id TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-      `);
+        FOREIGN KEY (user_id) REFERENCES users (id)
+      )
+    `);
 
-      // Transaction history table for comprehensive tracking
+    // Transaction history table for comprehensive tracking
       await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS transaction_history (
-          id TEXT PRIMARY KEY,
-          seller_id TEXT NOT NULL,
-          material_id TEXT,
-          listing_id TEXT,
+      CREATE TABLE IF NOT EXISTS transaction_history (
+        id TEXT PRIMARY KEY,
+        seller_id TEXT NOT NULL,
+        material_id TEXT,
+        listing_id TEXT,
           transaction_type TEXT NOT NULL,
           buyer_id TEXT,
           order_id TEXT,
           from_project_id TEXT,
           to_project_id TEXT,
-          quantity INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
           unit_price NUMERIC,
           total_amount NUMERIC,
-          material_name TEXT NOT NULL,
-          buyer_company TEXT,
-          buyer_contact TEXT,
-          delivery_address TEXT,
-          notes TEXT,
+        material_name TEXT NOT NULL,
+        buyer_company TEXT,
+        buyer_contact TEXT,
+        delivery_address TEXT,
+        notes TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (seller_id) REFERENCES users (id),
-          FOREIGN KEY (material_id) REFERENCES materials (id),
-          FOREIGN KEY (buyer_id) REFERENCES users (id),
-          FOREIGN KEY (order_id) REFERENCES orders (id)
-        )
-      `);
+        FOREIGN KEY (seller_id) REFERENCES users (id),
+        FOREIGN KEY (material_id) REFERENCES materials (id),
+        FOREIGN KEY (buyer_id) REFERENCES users (id),
+        FOREIGN KEY (order_id) REFERENCES orders (id)
+      )
+    `);
 
       console.log('✅ PostgreSQL database tables initialized successfully');
     } catch (error) {
@@ -449,7 +452,7 @@ class Database {
         console.log('✅ Default admin user created: admin@greenscore.com / admin123');
         const testVerify = bcrypt.compareSync('admin123', adminPasswordHash);
         console.log('🔑 Password verification test:', testVerify ? '✅ PASSED' : '❌ FAILED');
-      } else {
+        } else {
         // Admin user exists, verify and update password hash if needed
         const row = result.rows[0];
         const currentHashWorks = bcrypt.compareSync('admin123', row.password_hash);
@@ -610,24 +613,24 @@ class Database {
         LEFT JOIN projects p ON m.project_id = p.id
         WHERE m.seller_id = $1
       `;
-      let params = [sellerId];
+    let params = [sellerId];
       let paramIndex = 2;
 
-      if (filters.projectId && filters.projectId !== 'all') {
+    if (filters.projectId && filters.projectId !== 'all') {
         query += ` AND m.project_id = $${paramIndex}`;
-        params.push(filters.projectId);
+      params.push(filters.projectId);
         paramIndex++;
-      }
+    }
 
-      if (filters.inventoryType && filters.inventoryType !== 'all') {
+    if (filters.inventoryType && filters.inventoryType !== 'all') {
         query += ` AND m.inventory_type = $${paramIndex}`;
-        params.push(filters.inventoryType);
+      params.push(filters.inventoryType);
         paramIndex++;
-      }
+    }
 
-      if (filters.listingType && filters.listingType !== 'all') {
+    if (filters.listingType && filters.listingType !== 'all') {
         query += ` AND m.listing_type = $${paramIndex}`;
-        params.push(filters.listingType);
+      params.push(filters.listingType);
         paramIndex++;
       }
 
@@ -635,25 +638,25 @@ class Database {
 
       const result = await pool.query(query, params);
       
-      // Convert database fields to frontend-compatible names
+          // Convert database fields to frontend-compatible names
       const materials = result.rows.map(row => ({
-        ...row,
+            ...row,
         category: this.normalizeCategory(row.category),
-        qty: row.quantity,
-        projectId: row.project_id,
+            qty: row.quantity,
+            projectId: row.project_id,
         priceToday: parseFloat(row.price_today) || 0,
         pricePurchased: parseFloat(row.price_purchased) || 0,
         inventoryValue: parseFloat(row.inventory_value) || 0,
-        inventoryType: row.inventory_type,
-        listingType: row.listing_type,
-        acquisitionType: row.acquisition_type,
-        specsPhoto: row.specs_photo,
+            inventoryType: row.inventory_type,
+            listingType: row.listing_type,
+            acquisitionType: row.acquisition_type,
+            specsPhoto: row.specs_photo,
         location_details: row.location_details,
         project_name: row.project_name,
         project_location: row.project_location,
-        is_being_edited: row.is_being_edited,
-        createdAt: row.created_at
-      }));
+            is_being_edited: row.is_being_edited,
+            createdAt: row.created_at
+          }));
       
       return materials;
     } catch (error) {
@@ -736,61 +739,61 @@ class Database {
   async getMaterialsForBuyers(filters = {}) {
     const pool = await this.ensurePool();
     try {
-      let query = `
-        SELECT m.*, 
-               p.name as project_name,
-               p.location as project_location
-        FROM materials m 
-        LEFT JOIN projects p ON m.project_id = p.id 
-        WHERE m.quantity > 0 AND m.listing_type = 'resale' AND (m.acquisition_type IS NULL OR m.acquisition_type != 'acquired')
-      `;
-      let params = [];
+    let query = `
+      SELECT m.*, 
+             p.name as project_name,
+             p.location as project_location
+      FROM materials m 
+      LEFT JOIN projects p ON m.project_id = p.id 
+      WHERE m.quantity > 0 AND m.listing_type = 'resale' AND (m.acquisition_type IS NULL OR m.acquisition_type != 'acquired')
+    `;
+    let params = [];
       let paramIndex = 1;
 
-      if (filters.category && filters.category !== 'all') {
+    if (filters.category && filters.category !== 'all') {
         query += ` AND m.category = $${paramIndex}`;
-        params.push(filters.category);
+      params.push(filters.category);
         paramIndex++;
-      }
+    }
 
-      if (filters.search) {
-        const searchTerm = `%${filters.search}%`;
+    if (filters.search) {
+      const searchTerm = `%${filters.search}%`;
         query += ` AND (m.material LIKE $${paramIndex} OR m.brand LIKE $${paramIndex + 1} OR m.specs LIKE $${paramIndex + 2})`;
-        params.push(searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm, searchTerm);
         paramIndex += 3;
-      }
+    }
 
-      query += ' ORDER BY m.created_at DESC';
+    query += ' ORDER BY m.created_at DESC';
 
       const result = await pool.query(query, params);
       
-      // Convert quantity back to qty and include seller info for notifications
+          // Convert quantity back to qty and include seller info for notifications
       const materials = result.rows.map(row => ({
-        id: row.id,
-        material: row.material,
-        brand: row.brand,
+            id: row.id,
+            material: row.material,
+            brand: row.brand,
         category: this.normalizeCategory(row.category),
-        condition: row.condition,
-        qty: row.quantity,
-        unit: row.unit,
+            condition: row.condition,
+            qty: row.quantity,
+            unit: row.unit,
         priceToday: parseFloat(row.price_today) || 0,
         mrp: parseFloat(row.mrp) || 0,
-        specs: row.specs,
-        photo: row.photo,
-        dimensions: row.dimensions,
+            specs: row.specs,
+            photo: row.photo,
+            dimensions: row.dimensions,
         weight: parseFloat(row.weight) || 0,
-        location_details: row.location_details,
-        project_name: row.project_name,
-        project_location: row.project_location,
+            location_details: row.location_details,
+            project_name: row.project_name,
+            project_location: row.project_location,
         sellerId: row.seller_id,
-        is_being_edited: row.is_being_edited,
-        createdAt: row.created_at
-      }));
+            is_being_edited: row.is_being_edited,
+            createdAt: row.created_at
+          }));
       
       return materials;
     } catch (error) {
       throw error;
-    }
+        }
   }
 
   async updateMaterialListingType(materialId, listingType, targetProjectId = null) {
@@ -825,20 +828,20 @@ class Database {
       `;
 
       for (const material of materialsData) {
-        const listingId = this.generateListingId();
+          const listingId = this.generateListingId();
         await client.query(insertQuery, [
-          material.id, listingId, material.sellerId, material.projectId,
-          material.material, material.brand || '', material.category || 'Other',
-          material.condition || 'good', material.qty, material.unit || 'pcs',
-          material.priceToday, material.mrp || 0, material.pricePurchased || 0,
-          material.inventoryValue || 0, material.inventoryType || 'surplus',
-          material.listingType || 'resale', material.specs || '',
-          material.photo || '', material.specsPhoto || ''
-        ]);
+            material.id, listingId, material.sellerId, material.projectId,
+            material.material, material.brand || '', material.category || 'Other',
+            material.condition || 'good', material.qty, material.unit || 'pcs',
+            material.priceToday, material.mrp || 0, material.pricePurchased || 0,
+            material.inventoryValue || 0, material.inventoryType || 'surplus',
+            material.listingType || 'resale', material.specs || '',
+            material.photo || '', material.specsPhoto || ''
+          ]);
       }
 
       await client.query('COMMIT');
-      console.log('✅ DATABASE: Successfully saved', materialsData.length, 'materials');
+            console.log('✅ DATABASE: Successfully saved', materialsData.length, 'materials');
       return { success: true, count: materialsData.length };
     } catch (error) {
       await client.query('ROLLBACK');
@@ -871,7 +874,7 @@ class Database {
     try {
       await this.pool.end();
       console.log('Database connection pool closed');
-    } catch (error) {
+        } catch (error) {
       console.error('Error closing database:', error.message);
     }
   }
@@ -887,8 +890,8 @@ class Database {
         query += ', acquisition_type = $2';
         params.push(acquisitionType);
         query += ' WHERE id = $3';
-        params.push(materialId);
-      } else {
+      params.push(materialId);
+        } else {
         query += ' WHERE id = $2';
         params.push(materialId);
       }
@@ -904,8 +907,8 @@ class Database {
     const pool = await this.ensurePool(); const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      
-      // First, get current material info
+        
+        // First, get current material info
       const materialResult = await client.query('SELECT * FROM materials WHERE id = $1', [materialId]);
       
       if (materialResult.rows.length === 0) {
@@ -914,33 +917,33 @@ class Database {
       }
       
       const material = materialResult.rows[0];
-      
-      if (material.quantity < quantityPurchased) {
+          
+          if (material.quantity < quantityPurchased) {
         await client.query('ROLLBACK');
         throw new Error('Insufficient quantity available');
-      }
-      
-      const newQuantity = material.quantity - quantityPurchased;
-      
-      if (newQuantity <= 0) {
-        // If quantity becomes zero or less, mark as sold and set quantity to 0
+          }
+          
+          const newQuantity = material.quantity - quantityPurchased;
+          
+          if (newQuantity <= 0) {
+            // If quantity becomes zero or less, mark as sold and set quantity to 0
         await client.query(
           'UPDATE materials SET quantity = 0, listing_type = $1 WHERE id = $2',
           ['sold', materialId]
         );
         
         await client.query('COMMIT');
-        console.log(`🏷️ Material ${materialId} marked as SOLD (quantity: 0)`);
+                console.log(`🏷️ Material ${materialId} marked as SOLD (quantity: 0)`);
         return { success: true, newQuantity: 0, status: 'sold' };
-      } else {
-        // Just update the quantity
+          } else {
+            // Just update the quantity
         await client.query(
           'UPDATE materials SET quantity = $1 WHERE id = $2',
           [newQuantity, materialId]
         );
         
         await client.query('COMMIT');
-        console.log(`📦 Material ${materialId} quantity updated: ${newQuantity} remaining`);
+                console.log(`📦 Material ${materialId} quantity updated: ${newQuantity} remaining`);
         return { success: true, newQuantity: newQuantity, status: 'available' };
       }
     } catch (error) {
@@ -980,15 +983,15 @@ class Database {
       const result = await pool.query(query, [userId]);
       
       const notifications = result.rows.map(row => ({
-        ...row,
-        data: row.data ? JSON.parse(row.data) : null,
-        read: Boolean(row.read)
-      }));
+            ...row,
+            data: row.data ? JSON.parse(row.data) : null,
+            read: Boolean(row.read)
+          }));
       
       return notifications;
     } catch (error) {
       throw error;
-    }
+        }
   }
 
   async markNotificationAsRead(notificationId) {
@@ -1031,48 +1034,48 @@ class Database {
       );
       
       const material = materialResult.rows[0];
-      
-      // Create the order request
+          
+          // Create the order request
       await pool.query(
-        `INSERT INTO order_requests (
-          id, material_id, buyer_id, seller_id, quantity, unit_price, total_amount,
-          buyer_company, buyer_contact_person, buyer_email, buyer_phone,
-          delivery_address, delivery_notes
+            `INSERT INTO order_requests (
+              id, material_id, buyer_id, seller_id, quantity, unit_price, total_amount,
+              buyer_company, buyer_contact_person, buyer_email, buyer_phone,
+              delivery_address, delivery_notes
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-        [
-          requestId, requestData.materialId, requestData.buyerId, requestData.sellerId, 
-          requestData.quantity, requestData.unitPrice, requestData.totalAmount,
-          requestData.companyName, requestData.contactPerson, requestData.email, 
-          requestData.phone, requestData.deliveryAddress, requestData.deliveryNotes || ''
+            [
+              requestId, requestData.materialId, requestData.buyerId, requestData.sellerId, 
+              requestData.quantity, requestData.unitPrice, requestData.totalAmount,
+              requestData.companyName, requestData.contactPerson, requestData.email, 
+              requestData.phone, requestData.deliveryAddress, requestData.deliveryNotes || ''
         ]
       );
-      
-      // Create notification for seller
-      const notificationId = uuidv4();
+              
+              // Create notification for seller
+              const notificationId = uuidv4();
       try {
         await pool.query(
-          `INSERT INTO notifications (
-            id, user_id, title, message, type, related_id
+                `INSERT INTO notifications (
+                  id, user_id, title, message, type, related_id
           ) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            notificationId,
-            requestData.sellerId,
-            'New Order Request!',
-            `${requestData.contactPerson || 'A buyer'} from ${requestData.companyName || 'Unknown Company'} wants to purchase ${requestData.quantity} units of ${material?.material || 'your material'} (${material?.listing_id || 'N/A'})`,
-            'new_order_request',
-            requestId
+                [
+                  notificationId,
+                  requestData.sellerId,
+                  'New Order Request!',
+                  `${requestData.contactPerson || 'A buyer'} from ${requestData.companyName || 'Unknown Company'} wants to purchase ${requestData.quantity} units of ${material?.material || 'your material'} (${material?.listing_id || 'N/A'})`,
+                  'new_order_request',
+                  requestId
           ]
         );
       } catch (notifErr) {
-        // Don't fail if notification fails
+                  // Don't fail if notification fails
         console.error('Failed to create seller notification:', notifErr);
-      }
-      
-      // Send email notification to seller (async, don't wait)
-      this.sendOrderRequestEmailNotification(requestId).catch(err => {
-        console.error('Failed to send order request email:', err);
-      });
-      
+                  }
+                  
+                  // Send email notification to seller (async, don't wait)
+                  this.sendOrderRequestEmailNotification(requestId).catch(err => {
+                    console.error('Failed to send order request email:', err);
+                  });
+                  
       return { success: true, requestId };
     } catch (error) {
       throw error;
@@ -1143,153 +1146,153 @@ class Database {
     }
     
     const pool = await this.ensurePool(); const client = await pool.connect();
-    const results = [];
-    let processedCount = 0;
-    let successCount = 0;
-    
+      const results = [];
+      let processedCount = 0;
+      let successCount = 0;
+      
     try {
       await client.query('BEGIN');
-      
-      // Get all requests with their details, sorted by created_at (FCFS)
+          
+          // Get all requests with their details, sorted by created_at (FCFS)
       const placeholders = requestIds.map((_, i) => `$${i + 1}`).join(',');
-      const query = `
-        SELECT or_table.*, m.quantity as available_quantity, m.material as material_name
-        FROM order_requests or_table
-        JOIN materials m ON or_table.material_id = m.id
-        WHERE or_table.id IN (${placeholders})
-        ORDER BY or_table.created_at ASC
-      `;
-      
+          const query = `
+            SELECT or_table.*, m.quantity as available_quantity, m.material as material_name
+            FROM order_requests or_table
+            JOIN materials m ON or_table.material_id = m.id
+            WHERE or_table.id IN (${placeholders})
+            ORDER BY or_table.created_at ASC
+          `;
+          
       const requestsResult = await client.query(query, requestIds);
       const requests = requestsResult.rows;
-      
-      if (!requests || requests.length === 0) {
+            
+            if (!requests || requests.length === 0) {
         await client.query('ROLLBACK');
         throw new Error('No order requests found');
-      }
-      
-      // Group requests by material_id to handle inventory properly
-      const materialGroups = {};
-      requests.forEach(req => {
-        if (!materialGroups[req.material_id]) {
-          materialGroups[req.material_id] = {
-            availableQty: req.available_quantity,
-            requests: []
-          };
-        }
-        materialGroups[req.material_id].requests.push(req);
-      });
-      
-      // Process each material group
+            }
+            
+            // Group requests by material_id to handle inventory properly
+            const materialGroups = {};
+            requests.forEach(req => {
+              if (!materialGroups[req.material_id]) {
+                materialGroups[req.material_id] = {
+                  availableQty: req.available_quantity,
+                  requests: []
+                };
+              }
+              materialGroups[req.material_id].requests.push(req);
+            });
+            
+            // Process each material group
       for (const materialId of Object.keys(materialGroups)) {
-        const group = materialGroups[materialId];
-        let remainingQty = group.availableQty;
-        
-        // Process requests for this material in FCFS order
+              const group = materialGroups[materialId];
+              let remainingQty = group.availableQty;
+              
+              // Process requests for this material in FCFS order
         for (let index = 0; index < group.requests.length && remainingQty > 0; index++) {
-          const request = group.requests[index];
-          processedCount++;
-          
-          // Determine fulfillment quantity
-          const fulfilledQty = Math.min(remainingQty, request.quantity);
-          
-          if (fulfilledQty === 0) {
-            // No quantity left, mark as declined due to stock
+                const request = group.requests[index];
+                processedCount++;
+                
+                // Determine fulfillment quantity
+                const fulfilledQty = Math.min(remainingQty, request.quantity);
+                
+                if (fulfilledQty === 0) {
+                  // No quantity left, mark as declined due to stock
             try {
               await client.query(
                 'UPDATE order_requests SET status = $1, seller_notes = $2 WHERE id = $3',
                 ['declined', 'Out of stock - no quantity available', request.id]
               );
             } catch (err) {
-              console.error('Failed to decline request:', err);
-            }
-            results.push({
-              requestId: request.id,
-              status: 'declined',
-              reason: 'Out of stock'
-            });
+                        console.error('Failed to decline request:', err);
+                      }
+                      results.push({
+                        requestId: request.id,
+                        status: 'declined',
+                        reason: 'Out of stock'
+                      });
             continue;
-          }
+                    }
           
-          // Process approval (full or partial)
-          const isPartial = fulfilledQty < request.quantity;
-          const status = isPartial ? 'partially_approved' : 'approved';
-          const notes = isPartial 
-            ? `${sellerNotes} [Partial: ${fulfilledQty}/${request.quantity} units fulfilled]`
-            : sellerNotes;
-          
-          // Update order request
+                  // Process approval (full or partial)
+                  const isPartial = fulfilledQty < request.quantity;
+                  const status = isPartial ? 'partially_approved' : 'approved';
+                  const notes = isPartial 
+                    ? `${sellerNotes} [Partial: ${fulfilledQty}/${request.quantity} units fulfilled]`
+                    : sellerNotes;
+                  
+                  // Update order request
           try {
             await client.query(
               'UPDATE order_requests SET status = $1, approved_at = CURRENT_TIMESTAMP, seller_notes = $2, fulfilled_quantity = $3 WHERE id = $4',
               [status, notes, fulfilledQty, request.id]
             );
           } catch (err) {
-            console.error('Failed to update request:', err);
+                        console.error('Failed to update request:', err);
             continue;
-          }
-          
-          // Create order
-          const { v4: uuidv4 } = require('uuid');
-          const orderId = uuidv4();
-          const adjustedTotal = (fulfilledQty / request.quantity) * request.total_amount;
-          const platformFee = adjustedTotal * 0.05;
-          
+                      }
+                      
+                      // Create order
+                      const { v4: uuidv4 } = require('uuid');
+                      const orderId = uuidv4();
+                      const adjustedTotal = (fulfilledQty / request.quantity) * request.total_amount;
+                      const platformFee = adjustedTotal * 0.05;
+                      
           try {
             await client.query(
-              `INSERT INTO orders (
-                id, order_request_id, buyer_id, seller_id, material_id, quantity, 
-                unit_price, total_amount, platform_fee, shipping_address, delivery_notes
+                        `INSERT INTO orders (
+                          id, order_request_id, buyer_id, seller_id, material_id, quantity, 
+                          unit_price, total_amount, platform_fee, shipping_address, delivery_notes
               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-              [
-                orderId, request.id, request.buyer_id, request.seller_id, 
-                request.material_id, fulfilledQty, request.unit_price, 
-                adjustedTotal, platformFee, request.delivery_address, 
-                request.delivery_notes
+                        [
+                          orderId, request.id, request.buyer_id, request.seller_id, 
+                          request.material_id, fulfilledQty, request.unit_price, 
+                          adjustedTotal, platformFee, request.delivery_address, 
+                          request.delivery_notes
               ]
             );
           } catch (err) {
-            console.error('Failed to create order:', err);
+                            console.error('Failed to create order:', err);
             continue;
-          }
-          
-          // Create notification
-          const notifId = uuidv4();
-          const notifMessage = isPartial 
-            ? `Your order for ${request.material_name} has been partially fulfilled. ${fulfilledQty}/${request.quantity} units approved. Order ID: ${orderId}`
-            : `Your order for ${fulfilledQty} units of ${request.material_name} has been approved. Order ID: ${orderId}`;
-          
+                          }
+                          
+                          // Create notification
+                          const notifId = uuidv4();
+                          const notifMessage = isPartial 
+                            ? `Your order for ${request.material_name} has been partially fulfilled. ${fulfilledQty}/${request.quantity} units approved. Order ID: ${orderId}`
+                            : `Your order for ${fulfilledQty} units of ${request.material_name} has been approved. Order ID: ${orderId}`;
+                          
           try {
             await client.query(
-              `INSERT INTO notifications (id, user_id, title, message, type, related_id) 
+                            `INSERT INTO notifications (id, user_id, title, message, type, related_id) 
                VALUES ($1, $2, $3, $4, $5, $6)`,
-              [
-                notifId, request.buyer_id,
-                isPartial ? 'Order Partially Fulfilled!' : 'Order Approved!',
-                notifMessage, 'order_approved', orderId
+                            [
+                              notifId, request.buyer_id,
+                              isPartial ? 'Order Partially Fulfilled!' : 'Order Approved!',
+                              notifMessage, 'order_approved', orderId
               ]
             );
           } catch (err) {
-            console.error('Failed to create notification:', err);
-          }
-          
-          // Send email notification to buyer (async, don't wait)
-          this.sendOrderApprovalEmailNotification(orderId, request.id).catch(err => {
-            console.error('Failed to send order approval email:', err);
-          });
-          
-          // Update remaining quantity for next iteration
-          remainingQty -= fulfilledQty;
-          successCount++;
-          
-          results.push({
-            requestId: request.id,
-            orderId,
-            status: status,
-            fulfilledQty,
-            requestedQty: request.quantity,
-            isPartial
-          });
+                                console.error('Failed to create notification:', err);
+                              }
+                              
+                              // Send email notification to buyer (async, don't wait)
+                              this.sendOrderApprovalEmailNotification(orderId, request.id).catch(err => {
+                                console.error('Failed to send order approval email:', err);
+                              });
+                              
+                              // Update remaining quantity for next iteration
+                              remainingQty -= fulfilledQty;
+                              successCount++;
+                              
+                              results.push({
+                                requestId: request.id,
+                                orderId,
+                                status: status,
+                                fulfilledQty,
+                                requestedQty: request.quantity,
+                                isPartial
+                              });
         }
         
         // Update material quantity after processing all requests for this material
@@ -1338,50 +1341,50 @@ class Database {
     try {
       // First get the order request details for notification
       const requestResult = await pool.query('SELECT * FROM order_requests WHERE id = $1', [requestId]);
-      
+        
       if (requestResult.rows.length === 0) {
         throw new Error('Order request not found');
-      }
+        }
       
       const request = requestResult.rows[0];
-      
-      // Update the order request status
+        
+        // Update the order request status
       await pool.query(
         'UPDATE order_requests SET status = $1, seller_notes = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
         ['declined', sellerNotes, requestId]
       );
-      
-      // Create notification for buyer
-      const { v4: uuidv4 } = require('uuid');
-      const notificationId = uuidv4();
+            
+            // Create notification for buyer
+            const { v4: uuidv4 } = require('uuid');
+            const notificationId = uuidv4();
       try {
         await pool.query(
-          `INSERT INTO notifications (
-            id, user_id, title, message, type, related_id
+              `INSERT INTO notifications (
+                id, user_id, title, message, type, related_id
           ) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            notificationId,
-            request.buyer_id,
-            'Order Request Declined',
-            `Your order request for ${request.quantity} units has been declined by the seller. Reason: ${sellerNotes || 'No reason provided'}`,
-            'order_declined',
-            requestId
+              [
+                notificationId,
+                request.buyer_id,
+                'Order Request Declined',
+                `Your order request for ${request.quantity} units has been declined by the seller. Reason: ${sellerNotes || 'No reason provided'}`,
+                'order_declined',
+                requestId
           ]
         );
       } catch (notifErr) {
-        // Don't fail if notification fails
+                // Don't fail if notification fails
         console.error('Failed to create buyer notification:', notifErr);
-      }
-      
-      // Send email notification to buyer (async, don't wait)
-      this.sendOrderDeclineEmailNotification(requestId, sellerNotes).catch(err => {
-        console.error('Failed to send order decline email:', err);
-      });
-      
+                }
+                
+                // Send email notification to buyer (async, don't wait)
+                this.sendOrderDeclineEmailNotification(requestId, sellerNotes).catch(err => {
+                  console.error('Failed to send order decline email:', err);
+                });
+                
       return { success: true, changes: 1 };
     } catch (error) {
       throw error;
-    }
+              }
   }
 
 
@@ -1724,18 +1727,18 @@ class Database {
     try {
       // First check if the material belongs to this seller
       const materialResult = await pool.query('SELECT id, seller_id FROM materials WHERE id = $1', [materialId]);
-      
+        
       if (materialResult.rows.length === 0) {
         throw new Error('Material not found');
-      }
+        }
       
       const material = materialResult.rows[0];
-      
-      if (material.seller_id !== sellerId) {
+        
+        if (material.seller_id !== sellerId) {
         throw new Error('Unauthorized: You can only delete your own materials');
-      }
-      
-      // Delete the material
+        }
+        
+        // Delete the material
       const result = await pool.query('DELETE FROM materials WHERE id = $1 AND seller_id = $2', [materialId, sellerId]);
       return { success: true, changes: result.rowCount };
     } catch (error) {
@@ -1771,20 +1774,20 @@ class Database {
       }
       
       const material = materialResult.rows[0];
-      
-      // Check if already being edited by someone else
-      if (material.is_being_edited && material.edited_by !== userId) {
-        // Check if edit session has timed out (15 minutes)
-        const editStarted = new Date(material.edit_started_at);
-        const now = new Date();
-        const diffMinutes = (now - editStarted) / 1000 / 60;
         
-        if (diffMinutes < 15) {
+        // Check if already being edited by someone else
+        if (material.is_being_edited && material.edited_by !== userId) {
+          // Check if edit session has timed out (15 minutes)
+          const editStarted = new Date(material.edit_started_at);
+          const now = new Date();
+          const diffMinutes = (now - editStarted) / 1000 / 60;
+          
+          if (diffMinutes < 15) {
           throw new Error('Material is currently being edited by another user');
+          }
         }
-      }
-      
-      // Lock the material for editing
+        
+        // Lock the material for editing
       await pool.query(
         'UPDATE materials SET is_being_edited = TRUE, edited_by = $1, edit_started_at = CURRENT_TIMESTAMP WHERE id = $2',
         [userId, materialId]
@@ -1823,9 +1826,9 @@ class Database {
       }
       
       const material = materialResult.rows[0];
-      
-      // Check if material is locked by another user
-      if (material.is_being_edited && material.edited_by !== userId) {
+        
+        // Check if material is locked by another user
+        if (material.is_being_edited && material.edited_by !== userId) {
         throw new Error('Material is being edited by another user');
       }
       
@@ -1863,13 +1866,13 @@ class Database {
       // Check if we have any fields to update
       if (Object.keys(dbUpdateData).length === 0) {
         return { success: true, changes: 0, message: 'No fields to update' };
-      }
-      
-      // Update the material
+        }
+        
+        // Update the material
       const fields = Object.keys(dbUpdateData).map((key, index) => `${key} = $${index + 1}`).join(', ');
       const values = Object.values(dbUpdateData);
-      values.push(materialId);
-      
+        values.push(materialId);
+        
       const query = `UPDATE materials SET ${fields}, updated_at = CURRENT_TIMESTAMP, is_being_edited = FALSE, edited_by = NULL, edit_started_at = NULL WHERE id = $${values.length}`;
       const result = await pool.query(query, values);
       
@@ -1894,32 +1897,32 @@ class Database {
       
       const row = result.rows[0];
       
-      // Check if edit session has timed out (15 minutes)
-      if (row.is_being_edited) {
-        const editStarted = new Date(row.edit_started_at);
-        const now = new Date();
-        const diffMinutes = (now - editStarted) / 1000 / 60;
-        
-        if (diffMinutes >= 15) {
-          // Session timed out, automatically unlock
+            // Check if edit session has timed out (15 minutes)
+            if (row.is_being_edited) {
+              const editStarted = new Date(row.edit_started_at);
+              const now = new Date();
+              const diffMinutes = (now - editStarted) / 1000 / 60;
+              
+              if (diffMinutes >= 15) {
+                // Session timed out, automatically unlock
           await pool.query(
             'UPDATE materials SET is_being_edited = FALSE, edited_by = NULL, edit_started_at = NULL WHERE id = $1',
             [materialId]
           );
           return { locked: false, timedOut: true };
-        } else {
+              } else {
           return { 
-            locked: true, 
-            editedBy: row.edited_by,
-            editStartedAt: row.edit_started_at
+                  locked: true, 
+                  editedBy: row.edited_by,
+                  editStartedAt: row.edit_started_at
           };
-        }
-      } else {
+              }
+            } else {
         return { locked: false };
-      }
+            }
     } catch (error) {
       throw error;
-    }
+          }
   }
 
   async getSystemStats() {
@@ -1964,20 +1967,20 @@ class Database {
     const pool = await this.ensurePool(); const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      
-      // Delete user's materials
+        
+        // Delete user's materials
       await client.query('DELETE FROM materials WHERE seller_id = $1', [userId]);
-      
-      // Delete user's projects
+          
+          // Delete user's projects
       await client.query('DELETE FROM projects WHERE seller_id = $1', [userId]);
-      
-      // Delete user's orders
+            
+            // Delete user's orders
       await client.query('DELETE FROM orders WHERE buyer_id = $1 OR seller_id = $1', [userId]);
-      
-      // Delete user's order requests
+              
+              // Delete user's order requests
       await client.query('DELETE FROM order_requests WHERE buyer_id = $1 OR seller_id = $1', [userId]);
-      
-      // Finally, delete the user
+                
+                // Finally, delete the user
       await client.query('DELETE FROM users WHERE id = $1', [userId]);
       
       await client.query('COMMIT');
@@ -2006,16 +2009,16 @@ class Database {
   async sendOrderRequestEmailNotification(requestId) {
     try {
       // Get order request details with related data
-      const query = `
-        SELECT 
-          r.*,
-          m.material, m.listing_id, m.unit,
-          seller.name as seller_name, seller.email as seller_email,
-          buyer.name as buyer_name, buyer.email as buyer_email, buyer.company_name as buyer_company
-        FROM order_requests r
-        JOIN materials m ON r.material_id = m.id
-        JOIN users seller ON r.seller_id = seller.id
-        LEFT JOIN users buyer ON r.buyer_id = buyer.id
+        const query = `
+          SELECT 
+            r.*,
+            m.material, m.listing_id, m.unit,
+            seller.name as seller_name, seller.email as seller_email,
+            buyer.name as buyer_name, buyer.email as buyer_email, buyer.company_name as buyer_company
+          FROM order_requests r
+          JOIN materials m ON r.material_id = m.id
+          JOIN users seller ON r.seller_id = seller.id
+          LEFT JOIN users buyer ON r.buyer_id = buyer.id
         WHERE r.id = $1
       `;
       const result = await pool.query(query, [requestId]);
@@ -2069,16 +2072,16 @@ class Database {
   async sendOrderApprovalEmailNotification(orderId, requestId) {
     try {
       // Get order details with related data
-      const query = `
-        SELECT 
-          o.*,
-          m.material, m.unit, m.listing_id,
-          buyer.name as buyer_name, buyer.email as buyer_email, buyer.user_type as buyer_type,
-          seller.name as seller_name, seller.email as seller_email
-        FROM orders o
-        JOIN materials m ON o.material_id = m.id
-        JOIN users buyer ON o.buyer_id = buyer.id
-        JOIN users seller ON o.seller_id = seller.id
+        const query = `
+          SELECT 
+            o.*,
+            m.material, m.unit, m.listing_id,
+            buyer.name as buyer_name, buyer.email as buyer_email, buyer.user_type as buyer_type,
+            seller.name as seller_name, seller.email as seller_email
+          FROM orders o
+          JOIN materials m ON o.material_id = m.id
+          JOIN users buyer ON o.buyer_id = buyer.id
+          JOIN users seller ON o.seller_id = seller.id
         WHERE o.id = $1
       `;
       const result = await pool.query(query, [orderId]);
@@ -2129,16 +2132,16 @@ class Database {
   async sendOrderDeclineEmailNotification(requestId, reason) {
     try {
       // Get order request details
-      const query = `
-        SELECT 
-          r.*,
-          m.material, m.listing_id, m.unit,
-          buyer.name as buyer_name, buyer.email as buyer_email,
-          seller.name as seller_name, seller.email as seller_email
-        FROM order_requests r
-        JOIN materials m ON r.material_id = m.id
-        LEFT JOIN users buyer ON r.buyer_id = buyer.id
-        JOIN users seller ON r.seller_id = seller.id
+        const query = `
+          SELECT 
+            r.*,
+            m.material, m.listing_id, m.unit,
+            buyer.name as buyer_name, buyer.email as buyer_email,
+            seller.name as seller_name, seller.email as seller_email
+          FROM order_requests r
+          JOIN materials m ON r.material_id = m.id
+          LEFT JOIN users buyer ON r.buyer_id = buyer.id
+          JOIN users seller ON r.seller_id = seller.id
         WHERE r.id = $1
       `;
       const result = await pool.query(query, [requestId]);

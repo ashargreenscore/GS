@@ -24,9 +24,12 @@ Render and many hosting providers are IPv4-only. Supabase's Direct connection (p
 2. Scroll down to **Connection string**
 3. Click on **URI** tab
 4. **Change "Method" dropdown from "Direct connection" to "Transaction Pooler"**
-5. Copy the connection string (should now show port **6543**, like: `postgresql://postgres:[YOUR-PASSWORD]@db.xxx.supabase.co:6543/postgres`)
-6. Replace `[YOUR-PASSWORD]` with your actual database password
+5. Copy the connection string - it will look like one of these formats:
+   - `postgresql://postgres.xxx:[YOUR-PASSWORD]@aws-x-region.pooler.supabase.com:6543/postgres` (new format)
+   - `postgresql://postgres:[YOUR-PASSWORD]@db.xxx.supabase.co:6543/postgres` (old format)
+6. Replace `[YOUR-PASSWORD]` with your actual database password (the one you set when creating the project)
 7. ⚠️ **DO NOT use port 5432** (Direct connection) - it's not IPv4 compatible!
+8. ⚠️ **Make sure port is 6543** (Transaction Pooler) - this is IPv4 compatible!
 
 **Why Transaction Pooler?**
 - ✅ IPv4 compatible (works with Render, Railway, etc.)
