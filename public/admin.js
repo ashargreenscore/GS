@@ -104,6 +104,7 @@ function showAdminTab(tabName) {
 // Users Management
 async function loadUsers() {
     try {
+        console.log('Loading users...');
         const response = await fetch('/api/admin/users');
         const result = await response.json();
         

@@ -551,13 +551,20 @@ function displayGridView(filteredMaterials) {
     }
     
     inventoryGrid.innerHTML = filteredMaterials.map(material => {
-        // Parse photos - could be single string or JSON array
+        // Parse photos using helper function (reuse buyer marketplace logic)
         let photos = [];
         if (material.photo) {
             try {
-                photos = JSON.parse(material.photo);
-                if (!Array.isArray(photos)) photos = [material.photo];
+                const parsed = JSON.parse(material.photo);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    photos = parsed;
+                } else if (parsed && typeof parsed === 'string') {
+                    photos = [parsed];
+                } else {
+                    photos = [material.photo];
+                }
             } catch {
+                // Not JSON, use as-is (could be base64 or URL)
                 photos = [material.photo];
             }
         }

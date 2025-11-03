@@ -1798,16 +1798,25 @@ function closeProfilePage() {
 }
 
 async function loadProfileData() {
-    if (!currentUser || !currentUser.id) return;
+    if (!currentUser || !currentUser.id) {
+        console.error('No current user or user ID');
+        return;
+    }
     
     try {
+        console.log('Loading profile data for user:', currentUser.id);
+        
         // Load user details
         const userResponse = await fetch(`/api/users/${currentUser.id}`);
         if (userResponse.ok) {
             const userResult = await userResponse.json();
             if (userResult.success && userResult.user) {
                 populateProfilePage(userResult.user);
+            } else {
+                console.error('User API error:', userResult);
             }
+        } else {
+            console.error('User API response not OK:', userResponse.status);
         }
         
         // Load orders
@@ -1816,9 +1825,18 @@ async function loadProfileData() {
             const ordersResult = await ordersResponse.json();
             if (ordersResult.success) {
                 profileOrders = ordersResult.orders || [];
+                console.log(`Loaded ${profileOrders.length} orders`);
                 displayProfileOrders();
                 updateProfileStats();
+            } else {
+                console.error('Orders API error:', ordersResult);
+                profileOrders = [];
+                displayProfileOrders();
             }
+        } else {
+            console.error('Orders API response not OK:', ordersResponse.status);
+            profileOrders = [];
+            displayProfileOrders();
         }
         
         // Load order requests
@@ -1827,12 +1845,26 @@ async function loadProfileData() {
             const requestsResult = await requestsResponse.json();
             if (requestsResult.success) {
                 profileOrderRequests = requestsResult.requests || [];
+                console.log(`Loaded ${profileOrderRequests.length} order requests`);
                 displayProfileRequests();
                 updateProfileStats();
+            } else {
+                console.error('Order requests API error:', requestsResult);
+                profileOrderRequests = [];
+                displayProfileRequests();
             }
+        } else {
+            console.error('Order requests API response not OK:', requestsResponse.status);
+            profileOrderRequests = [];
+            displayProfileRequests();
         }
     } catch (error) {
         console.error('Error loading profile data:', error);
+        // Show empty states even on error
+        profileOrders = [];
+        profileOrderRequests = [];
+        displayProfileOrders();
+        displayProfileRequests();
     }
 }
 

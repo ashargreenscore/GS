@@ -1510,6 +1510,7 @@ class Database {
   }
 
   async getOrdersByBuyer(buyerId) {
+    const pool = await this.ensurePool();
     try {
       const query = `
         SELECT 
@@ -1552,6 +1553,7 @@ class Database {
   }
 
   async getOrderRequestsByBuyer(buyerId) {
+    const pool = await this.ensurePool();
     try {
       const query = `
         SELECT 
@@ -1691,7 +1693,7 @@ class Database {
         LEFT JOIN projects p ON m.project_id = p.id
         LEFT JOIN order_requests req ON m.id = req.material_id AND req.status = 'pending'
         LEFT JOIN orders o ON m.id = o.material_id
-        GROUP BY m.id
+        GROUP BY m.id, u.name, u.company_name, p.name, p.location
         ORDER BY m.created_at DESC
       `;
       
