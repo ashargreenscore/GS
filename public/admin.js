@@ -225,7 +225,22 @@ async function loadCategories() {
 }
 
 async function loadMaterials() {
+    const materialsTab = document.getElementById('materials-tab');
+    if (!materialsTab || !materialsTab.classList.contains('active')) return;
+    
     try {
+        // Show loading indicator
+        const gridContainer = document.getElementById('materials-grid');
+        const tableContainer = document.getElementById('materials-table-body');
+        if (gridContainer) {
+            gridContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem;"><div style="display: inline-block;"><div class="loading-spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #10b981; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div><div style="width: 200px; background: #e5e7eb; border-radius: 10px; overflow: hidden; margin: 0 auto 1rem;"><div id="admin-materials-progress" style="width: 0%; background: linear-gradient(90deg, #10b981 0%, #059669 100%); height: 24px; transition: width 0.3s;"></div></div><p id="admin-materials-status" style="color: #6b7280; font-size: 0.875rem;">Loading materials... 0%</p></div></div>';
+        }
+        if (tableContainer) {
+            tableContainer.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 3rem;"><div class="loading-spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #10b981; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 1rem; display: inline-block;"></div><p>Loading materials...</p></td></tr>';
+        }
+        
+        updateAdminMaterialsProgress(10, 'Initializing...');
+        
         const projectId = document.getElementById('admin-project-filter')?.value || 'all';
         const listingType = document.getElementById('admin-listing-filter')?.value || 'all';
         const sellerId = document.getElementById('admin-seller-filter')?.value || 'all';
@@ -239,23 +254,65 @@ async function loadMaterials() {
         if (sellerId !== 'all') params.append('sellerId', sellerId);
         if (category !== 'all') params.append('category', category);
         
+        updateAdminMaterialsProgress(30, 'Requesting data...');
+        
         const response = await fetch(url + params.toString());
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        updateAdminMaterialsProgress(60, 'Processing...');
+        
         const result = await response.json();
+        
+        updateAdminMaterialsProgress(80, 'Rendering...');
         
         console.log('Materials API response:', result);
         
         if (result.success) {
             materials = result.materials || [];
             console.log(`Loaded ${materials.length} materials`);
-            displayMaterials();
-            populateSellerFilter();
+            
+            updateAdminMaterialsProgress(100, 'Complete!');
+            
+            setTimeout(() => {
+                displayMaterials();
+                populateSellerFilter();
+            }, 300);
         } else {
             console.error('Failed to load materials:', result.error);
             materials = [];
-            displayMaterials();
+            if (gridContainer) {
+                gridContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: #ef4444;"><i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 1rem;"></i><p>Failed to load materials: ' + (result.error || 'Unknown error') + '</p></div>';
+            }
+            if (tableContainer) {
+                tableContainer.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 3rem; color: #ef4444;">Failed to load materials</td></tr>';
+            }
         }
     } catch (error) {
         console.error('Error loading materials:', error);
+        const gridContainer = document.getElementById('materials-grid');
+        const tableContainer = document.getElementById('materials-table-body');
+        if (gridContainer) {
+            gridContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: #ef4444;"><i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 1rem;"></i><p>Error: ' + error.message + '</p></div>';
+        }
+        if (tableContainer) {
+            tableContainer.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 3rem; color: #ef4444;">Error loading materials</td></tr>';
+        }
+        materials = [];
+    }
+}
+
+function updateAdminMaterialsProgress(percent, message) {
+    const progressBar = document.getElementById('admin-materials-progress');
+    const statusText = document.getElementById('admin-materials-status');
+    
+    if (progressBar) {
+        progressBar.style.width = percent + '%';
+    }
+    if (statusText) {
+        statusText.textContent = message + ' ' + percent + '%';
     }
 }
 
