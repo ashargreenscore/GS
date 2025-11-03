@@ -613,50 +613,59 @@ function displayMaterials() {
         // Parse photo with caching for performance
         const photoUrl = parsePhoto(material.photo);
         
+        // Build onclick handler to avoid nested template literal issues
         const onClickHandler = material.is_being_edited ? '' : `showProductModal('${material.id}')`;
-        return `
-        <div class="product-card" onclick="${onClickHandler}" style="position: relative; ${material.is_being_edited ? 'opacity: 0.7; cursor: not-allowed;' : ''}">
-            ${material.is_being_edited ? `
+        const cardStyle = material.is_being_edited ? 'opacity: 0.7; cursor: not-allowed;' : '';
+        const editedBadge = material.is_being_edited ? `
                 <div style="position: absolute; top: 10px; left: 10px; background: #ef4444; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; z-index: 10;">
                     <i class="fas fa-lock"></i> Being Edited
                 </div>
-            ` : ''}
-            ${isAdmin && !material.is_being_edited ? `
+            ` : '';
+        const adminDeleteBtn = isAdmin && !material.is_being_edited ? `
                 <div class="admin-delete-btn" onclick="event.stopPropagation(); deleteMaterial('${material.id}')" title="Delete Material" style="position: absolute; top: 10px; right: 10px; background: #ef4444; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
                     <i class="fas fa-trash" style="font-size: 14px;"></i>
                 </div>
-            ` : ''}
+            ` : '';
+        const imageHtml = photoUrl ? 
+            `<img src="${photoUrl}" alt="${material.material}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+             <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                 <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem;"></i>
+                 <span>No Image</span>
+             </div>` :
+            `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                 <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem;"></i>
+                 <span>No Image</span>
+             </div>`;
+        const brandHtml = material.brand ? `<div class="product-brand">${material.brand}</div>` : '';
+        const specsHtml = material.specs && material.specs.trim() ? `<div class="product-specs">${material.specs}</div>` : '';
+        const cartButtonHtml = getCartButtonHTML(material);
+        
+        return `
+        <div class="product-card" onclick="${onClickHandler}" style="position: relative; ${cardStyle}">
+            ${editedBadge}
+            ${adminDeleteBtn}
             <div class="product-image">
-                ${photoUrl ? 
-                    `<img src="${photoUrl}" alt="${material.material}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                     <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
-                         <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem;"></i>
-                         <span>No Image</span>
-                     </div>` :
-                    `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
-                         <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem;"></i>
-                         <span>No Image</span>
-                     </div>`
-                }
+                ${imageHtml}
             </div>
             <div class="product-info">
                 <div class="product-header">
                     <span class="product-category">${material.category || 'Other'}</span>
                 </div>
                 <h3>${material.material}</h3>
-                ${material.brand ? `<div class="product-brand">${material.brand}</div>` : ''}
-                ${material.specs && material.specs.trim() ? `<div class="product-specs">${material.specs}</div>` : ''}
+                ${brandHtml}
+                ${specsHtml}
                 <div class="product-meta">
                     <span><strong>Condition:</strong> ${material.condition ? material.condition.charAt(0).toUpperCase() + material.condition.slice(1) : 'Good'}</span>
                     <span><strong>Available:</strong> ${material.qty} ${material.unit || 'pcs'}</span>
                 </div>
                 <div class="product-footer">
                     <div class="product-price">₹${material.priceToday || 0}</div>
-                    ${getCartButtonHTML(material)}
+                    ${cartButtonHtml}
                 </div>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // Get cart button HTML for modal view (doesn't close modal)
