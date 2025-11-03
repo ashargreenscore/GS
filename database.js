@@ -116,15 +116,36 @@ class Database {
       // Handle connection errors
       this.pool.on('error', (err) => {
         console.error('❌ Unexpected error on idle PostgreSQL client:', err);
+        // On connection errors, reset pool to allow reconnection
+        if (err.code === '57P01' || err.code === '57P02' || err.message.includes('terminated')) {
+          console.warn('⚠️ Connection terminated, pool will be reset on next use');
+        }
       });
       
-      // Test connection with retry logic
+      // Handle pool connection events
+      this.pool.on('connect', (client) => {
+        console.log('✅ New database client connected');
+      });
+      
+      this.pool.on('remove', (client) => {
+        console.log('ℹ️ Database client removed from pool');
+      });
+      
+      // Test connection with retry logic and timeout
       let retries = 3;
       let connected = false;
       
       while (retries > 0 && !connected) {
         try {
-          await this.pool.query('SELECT NOW()');
+          // Test with timeout
+          const testQuery = Promise.race([
+            this.pool.query('SELECT NOW()'),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Connection test timeout')), 20000)
+            )
+          ]);
+          
+          await testQuery;
           console.log('✅ Connected to PostgreSQL database');
           connected = true;
           
@@ -133,8 +154,8 @@ class Database {
         } catch (connError) {
           retries--;
           if (retries > 0) {
-            console.warn(`⚠️ Connection test failed, retrying... (${retries} attempts left)`);
-            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+            console.warn(`⚠️ Connection test failed, retrying... (${retries} attempts left):`, connError.message);
+            await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
           } else {
             throw connError;
           }
