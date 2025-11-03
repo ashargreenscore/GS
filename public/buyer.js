@@ -1892,17 +1892,8 @@ function displayProfileOrders() {
     
     // Display all orders
     ordersList.innerHTML = profileOrders.map(order => {
-        // Parse photo
-        let photos = [];
-        if (order.photo) {
-            try {
-                photos = JSON.parse(order.photo);
-                if (!Array.isArray(photos)) photos = [order.photo];
-            } catch {
-                photos = [order.photo];
-            }
-        }
-        const firstPhoto = photos.length > 0 ? photos[0] : null;
+        // Parse photo using cached helper
+        const firstPhoto = parsePhoto(order.photo);
         
         return `
             <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
@@ -2030,17 +2021,8 @@ function displayProfileRequests() {
     }
     
     requestsList.innerHTML = profileOrderRequests.map(request => {
-        // Parse photo
-        let photos = [];
-        if (request.photo) {
-            try {
-                photos = JSON.parse(request.photo);
-                if (!Array.isArray(photos)) photos = [request.photo];
-            } catch {
-                photos = [request.photo];
-            }
-        }
-        const firstPhoto = photos.length > 0 ? photos[0] : null;
+        // Parse photo using cached helper
+        const firstPhoto = parsePhoto(request.photo);
         
         return `
             <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
