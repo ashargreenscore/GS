@@ -1,0 +1,24 @@
+// This is a template showing the key changes needed for PostgreSQL migration
+// The full conversion requires replacing ALL methods in database.js
+
+// KEY CHANGES:
+// 1. Replace: const sqlite3 = require('sqlite3').verbose();
+//    With: const { Pool } = require('pg');
+//
+// 2. Replace: this.db = new sqlite3.Database(...);
+//    With: this.pool = new Pool({ connectionString: process.env.DATABASE_URL });
+//
+// 3. Convert ALL queries:
+//    - Replace ? placeholders with $1, $2, $3...
+//    - TEXT → TEXT (same)
+//    - DATETIME → TIMESTAMP
+//    - REAL → NUMERIC
+//    - BOOLEAN DEFAULT 1 → BOOLEAN DEFAULT TRUE
+//
+// 4. Convert callbacks to async/await:
+//    - this.db.get(query, [param], (err, row) => ...)
+//    - To: const result = await this.pool.query(query, [param]); const row = result.rows[0];
+//
+// 5. Transactions:
+//    - Use: const client = await this.pool.connect(); try { await client.query('BEGIN'); ... await client.query('COMMIT'); } finally { client.release(); }
+

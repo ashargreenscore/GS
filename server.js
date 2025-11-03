@@ -547,76 +547,7 @@ app.delete('/api/materials/:materialId', async (req, res) => {
   }
 });
 
-// Internal transfer endpoints
-app.post('/api/internal-transfer', async (req, res) => {
-  try {
-    const { userId, materialId, fromProjectId, toProjectId, quantityTransferred, notes } = req.body;
-    
-    // Validate required fields
-    if (!userId || !materialId || !fromProjectId || !toProjectId || !quantityTransferred) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields' 
-      });
-    }
-    
-    if (quantityTransferred <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Transfer quantity must be greater than 0' 
-      });
-    }
-    
-    if (fromProjectId === toProjectId) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Cannot transfer to the same project' 
-      });
-    }
-    
-    const transferData = {
-      id: uuidv4(),
-      userId,
-      materialId,
-      fromProjectId,
-      toProjectId,
-      quantityTransferred: parseInt(quantityTransferred),
-      notes
-    };
-    
-    console.log('🔄 Creating internal transfer:', transferData);
-    
-    const result = await db.createInternalTransfer(transferData);
-    
-    console.log('✅ Transfer completed:', result);
-    res.json(result);
-    
-  } catch (error) {
-    console.error('❌ Error creating internal transfer:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message || 'Failed to create internal transfer' 
-    });
-  }
-});
-
-// Get transfer history for a user
-app.get('/api/internal-transfers/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    
-    console.log('📋 Fetching transfer history for user:', userId);
-    
-    const transfers = await db.getInternalTransfersByUser(userId);
-    
-    console.log('✅ Found transfers:', transfers.length);
-    res.json(transfers);
-    
-  } catch (error) {
-    console.error('❌ Error fetching transfer history:', error);
-    res.status(500).json({ error: 'Failed to fetch transfer history' });
-  }
-});
+// Internal transfer endpoints - REMOVED (feature no longer used)
 
 // Update material listing type and acquisition status
 app.put('/api/materials/:materialId/listing-type', async (req, res) => {
@@ -1789,7 +1720,7 @@ process.on('SIGTERM', () => {
 app.listen(PORT, () => {
   console.log(`🚀 GreenScore Enhanced Marketplace server running on port ${PORT}`);
   console.log(`📁 Supported file types: CSV, Excel (.xlsx/.xls), PDF, ZIP`);
-  console.log(`💾 Database: SQLite with persistent storage`);
+  console.log(`💾 Database: PostgreSQL (Supabase)`);
   console.log(`🔒 Security: Password hashing enabled`);
   console.log(`\n🔑 ADMIN ACCESS CREDENTIALS:`);
   console.log(`   Username: admin@greenscore.com`);
