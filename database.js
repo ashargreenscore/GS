@@ -35,12 +35,22 @@ class Database {
       return this.pool;
     }
     
+    // Wait for initialization if in progress
     if (this.initializationPromise) {
       await this.initializationPromise;
     }
     
+    // If still not available, try reinitializing once
     if (!this.pool) {
-      throw new Error('Database connection pool is not available. Please check DATABASE_URL configuration.');
+      console.warn('⚠️ Database pool not initialized, attempting to reconnect...');
+      this.initializationPromise = this.initConnectionPool();
+      await this.initializationPromise;
+    }
+    
+    if (!this.pool) {
+      const errorMsg = 'Database connection pool is not available. Please check DATABASE_URL configuration in Render environment variables.';
+      console.error('❌', errorMsg);
+      throw new Error(errorMsg);
     }
     
     return this.pool;
@@ -49,6 +59,10 @@ class Database {
   async initConnectionPool() {
     try {
       const connectionString = process.env.DATABASE_URL;
+      
+      if (!connectionString) {
+        throw new Error('DATABASE_URL environment variable is not set');
+      }
       
       // Validate connection string uses Transaction Pooler (port 6543) for Supabase
       if (connectionString.includes('supabase') && connectionString.includes(':5432')) {
@@ -65,18 +79,28 @@ class Database {
       
       const [, username, password, hostname, port, database] = urlMatch;
       
-      // Resolve hostname to IPv4 address explicitly
-      console.log(`🔍 Resolving ${hostname} to IPv4 address...`);
-      const resolved = await dnsLookup(hostname, { family: 4 });
-      const ipv4Address = resolved.address;
-      console.log(`✅ Resolved ${hostname} to IPv4: ${ipv4Address}`);
+      // Try to resolve hostname to IPv4 address, fallback to original if DNS fails
+      let finalConnectionString = connectionString;
       
-      // Reconstruct connection string with IPv4 address (preserve password encoding)
-      const ipv4ConnectionString = `postgresql://${username}:${password}@${ipv4Address}:${port}/${database}`;
+      try {
+        console.log(`🔍 Resolving ${hostname} to IPv4 address...`);
+        const resolved = await dnsLookup(hostname, { family: 4 });
+        const ipv4Address = resolved.address;
+        console.log(`✅ Resolved ${hostname} to IPv4: ${ipv4Address}`);
+        
+        // Reconstruct connection string with IPv4 address (preserve password encoding)
+        finalConnectionString = `postgresql://${username}:${password}@${ipv4Address}:${port}/${database}`;
+      } catch (dnsError) {
+        // DNS resolution failed, use original hostname
+        console.warn(`⚠️ DNS resolution failed for ${hostname}, using hostname directly:`, dnsError.message);
+        console.warn('⚠️ This may work if the hostname resolves correctly at connection time');
+        // Keep original connectionString
+        finalConnectionString = connectionString;
+      }
       
-      // Initialize PostgreSQL connection pool with IPv4 address
+      // Initialize PostgreSQL connection pool
       this.pool = new Pool({
-        connectionString: ipv4ConnectionString,
+        connectionString: finalConnectionString,
         ssl: connectionString?.includes('supabase') ? { rejectUnauthorized: false } : false,
         connectionTimeoutMillis: 10000, // 10 second timeout
       });
@@ -86,12 +110,28 @@ class Database {
         console.error('❌ Unexpected error on idle PostgreSQL client:', err);
       });
       
-      // Test connection
-      await this.pool.query('SELECT NOW()');
-      console.log('✅ Connected to PostgreSQL database');
+      // Test connection with retry logic
+      let retries = 3;
+      let connected = false;
       
-      // Initialize tables asynchronously
-      await this.initTables();
+      while (retries > 0 && !connected) {
+        try {
+          await this.pool.query('SELECT NOW()');
+          console.log('✅ Connected to PostgreSQL database');
+          connected = true;
+          
+          // Initialize tables asynchronously
+          await this.initTables();
+        } catch (connError) {
+          retries--;
+          if (retries > 0) {
+            console.warn(`⚠️ Connection test failed, retrying... (${retries} attempts left)`);
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+          } else {
+            throw connError;
+          }
+        }
+      }
     } catch (err) {
       console.error('❌ Failed to connect to PostgreSQL:', err.message);
       console.error('Please check your DATABASE_URL connection string');
@@ -99,6 +139,7 @@ class Database {
         console.error('💡 TIP: Use Supabase Transaction Pooler (port 6543) instead of Direct (port 5432)');
         console.error('💡 Transaction Pooler is IPv4 compatible and works with Render');
         console.error('💡 Make sure DATABASE_URL uses Transaction Pooler method in Supabase dashboard');
+        console.error('💡 Verify your DATABASE_URL is correct in Render environment variables');
       }
       // Don't throw - allow the application to start and retry later
       this.pool = null;
