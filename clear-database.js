@@ -8,6 +8,10 @@ const dnsLookup = promisify(dns.lookup);
 async function clearDatabase() {
   if (!process.env.DATABASE_URL) {
     console.error('❌ DATABASE_URL not set');
+    console.error('💡 To run this script:');
+    console.error('   1. Set DATABASE_URL in your environment');
+    console.error('   2. Or run: DATABASE_URL="your_connection_string" node clear-database.js');
+    console.error('   3. Or run in Render console with DATABASE_URL already set');
     process.exit(1);
   }
 

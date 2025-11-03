@@ -242,8 +242,16 @@ async function loadMaterials() {
         const response = await fetch(url + params.toString());
         const result = await response.json();
         
+        console.log('Materials API response:', result);
+        
         if (result.success) {
-            materials = result.materials;
+            materials = result.materials || [];
+            console.log(`Loaded ${materials.length} materials`);
+            displayMaterials();
+            populateSellerFilter();
+        } else {
+            console.error('Failed to load materials:', result.error);
+            materials = [];
             displayMaterials();
         }
     } catch (error) {
