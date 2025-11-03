@@ -400,7 +400,7 @@ class Database {
       
       if (result.rows.length === 0) {
         // Admin user doesn't exist, create it
-        await pool.query(`
+        await this.pool.query(`
           INSERT INTO users (id, email, password_hash, name, user_type, verification_status, company_name)
           VALUES ($1, $2, $3, $4, $5, $6, $7)
         `, ['admin-default', 'admin@greenscore.com', adminPasswordHash, 'System Admin', 'admin', 'verified', 'GreenScore System']);
@@ -416,7 +416,7 @@ class Database {
         if (!currentHashWorks) {
           // Current hash doesn't work, update it
           console.log('🔄 Updating admin user password hash...');
-          await pool.query(`
+          await this.pool.query(`
             UPDATE users 
             SET password_hash = $1, user_type = 'admin', verification_status = 'verified'
             WHERE email = 'admin@greenscore.com'
@@ -493,6 +493,7 @@ class Database {
   }
 
   async getAllProjects() {
+    const pool = await this.ensurePool();
     try {
       const query = `
         SELECT 
@@ -514,6 +515,7 @@ class Database {
   }
 
   async getProjectById(projectId) {
+    const pool = await this.ensurePool();
     try {
       const result = await pool.query('SELECT * FROM projects WHERE id = $1', [projectId]);
       return result.rows[0] || null;
