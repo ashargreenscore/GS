@@ -1451,7 +1451,8 @@ class FileParser {
         
         // Look for matching image
         if (imageNameMap[photoFileName]) {
-          imageMap[rowIndex] = imageNameMap[photoFileName].webPath;
+          // Use base64 if available, otherwise fallback to webPath for backwards compatibility
+          imageMap[rowIndex] = imageNameMap[photoFileName].base64 || imageNameMap[photoFileName].webPath;
           console.log(`🔗 Mapped "${photoValue}" to row ${rowIndex}`);
         } else {
           console.log(`⚠️ Photo "${photoValue}" not found in images folder for row ${rowIndex}`);
