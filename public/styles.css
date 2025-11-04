@@ -3568,3 +3568,8 @@ body {
 @media (max-width: 480px) {
     .product-image, .material-card-image { height: 180px !important; }
 }
+
+/* Hide duplicate category dropdown in buyer marketplace (sidebar already present) */
+.buyer-main #category-filter {
+    display: none;
+}

@@ -433,6 +433,9 @@ function updateMaterialsProgress(percent, message) {
 // Populate category filters
 function populateCategoryFilters() {
     const categoryFilter = document.getElementById('category-filter');
+    if (!categoryFilter) return;
+    // Reset to default to avoid duplicate options on re-renders
+    categoryFilter.innerHTML = '<option value="all">All Categories</option>';
     
     categories.forEach(category => {
         const option = document.createElement('option');
