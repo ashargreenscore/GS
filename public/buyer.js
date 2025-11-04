@@ -338,7 +338,14 @@ function setupAccountForm() {
 async function loadCategories() {
     try {
         const response = await fetch('/api/categories');
-        categories = await response.json();
+        const serverCategories = await response.json();
+        // Normalize categories: trim, drop falsy/"All Categories", dedupe, sort
+        categories = [...new Set(
+            (Array.isArray(serverCategories) ? serverCategories : [])
+                .filter(c => c !== null && c !== undefined)
+                .map(c => String(c).trim())
+                .filter(c => c && c.toLowerCase() !== 'all categories')
+        )].sort();
         
         populateCategoryFilters();
         displayCategories();
@@ -492,6 +499,9 @@ function populateLocationFilters() {
 // Display categories in sidebar
 function displayCategories() {
     const categoryList = document.getElementById('category-list');
+    if (!categoryList) return;
+    // Clear to avoid duplicates on re-render
+    categoryList.innerHTML = '';
     
     const allCategory = document.createElement('div');
     allCategory.className = 'category-item active';
@@ -502,6 +512,7 @@ function displayCategories() {
     allCategory.addEventListener('click', () => selectCategory('all'));
     categoryList.appendChild(allCategory);
     
+    // Use normalized categories (already unique and sorted)
     categories.forEach(category => {
         const categoryItem = document.createElement('div');
         categoryItem.className = 'category-item';
