@@ -462,6 +462,19 @@ class Database {
         RETURNING *
       `, [userData.id, email, passwordHash, name, companyName || '', userType]);
       
+      // Fire-and-forget welcome email (non-blocking)
+      try {
+        await this.emailService.sendWelcomeEmail({
+          id: userData.id,
+          email,
+          name,
+          user_type: userType,
+          company_name: companyName || ''
+        });
+      } catch (emailErr) {
+        console.error('Warning: failed to send welcome email:', emailErr.message);
+      }
+      
       return { id: userData.id, email, name, userType, companyName };
     } catch (error) {
       throw error;
@@ -1116,8 +1129,8 @@ class Database {
 
       // Default seller from material
       const sellerId = requestData.sellerId || material.seller_id;
-
-      // Create the order request
+          
+          // Create the order request
       await pool.query(
             `INSERT INTO order_requests (
               id, material_id, buyer_id, seller_id, quantity, unit_price, total_amount,
@@ -1873,9 +1886,9 @@ class Database {
       
       const material = materialResult.rows[0];
       const isOwner = material.seller_id === userId;
-      
-      // Check if already being edited by someone else
-      if (material.is_being_edited && material.edited_by !== userId) {
+        
+        // Check if already being edited by someone else
+        if (material.is_being_edited && material.edited_by !== userId) {
         // If user is the owner, allow override (they own the material)
         if (isOwner) {
           console.log(`✅ Owner override: Material ${materialId} owned by ${userId}, clearing lock`);
@@ -1884,10 +1897,10 @@ class Database {
           // Check if edit session has timed out (5 minutes - reduced from 15)
           if (material.edit_started_at) {
             try {
-              const editStarted = new Date(material.edit_started_at);
-              const now = new Date();
-              const diffMinutes = (now - editStarted) / 1000 / 60;
-              
+          const editStarted = new Date(material.edit_started_at);
+          const now = new Date();
+          const diffMinutes = (now - editStarted) / 1000 / 60;
+          
               // Allow override if lock is older than 5 minutes
               if (diffMinutes >= 5) {
                 console.log(`✅ Lock expired (${Math.round(diffMinutes)} minutes old), allowing override`);
@@ -1898,7 +1911,7 @@ class Database {
               // Invalid date, treat as stale lock
               console.log('✅ Invalid lock timestamp, treating as stale and allowing override');
             }
-          } else {
+            } else {
             // No timestamp, allow override (stale lock)
             console.log('✅ Stale lock detected, allowing override');
           }
@@ -1964,9 +1977,9 @@ class Database {
       
       const material = materialResult.rows[0];
       const isOwner = material.seller_id === userId;
-      
-      // Check if material is locked by another user
-      if (material.is_being_edited && material.edited_by !== userId) {
+        
+        // Check if material is locked by another user
+        if (material.is_being_edited && material.edited_by !== userId) {
         // If user is the owner, allow override
         if (isOwner) {
           console.log(`✅ Owner override: Material ${materialId} owned by ${userId}, allowing update`);
@@ -1989,7 +2002,7 @@ class Database {
               // Invalid date, treat as stale
               console.log('✅ Invalid lock timestamp, treating as stale and allowing update');
             }
-          } else {
+            } else {
             // No timestamp, consider stale and clear
             console.log('✅ Stale lock detected, clearing and allowing update');
           }
@@ -2180,6 +2193,7 @@ class Database {
   // Email notification helper methods
   async sendOrderRequestEmailNotification(requestId) {
     try {
+      const pool = await this.ensurePool();
       // Get order request details with related data
         const query = `
           SELECT 
@@ -2243,6 +2257,7 @@ class Database {
 
   async sendOrderApprovalEmailNotification(orderId, requestId) {
     try {
+      const pool = await this.ensurePool();
       // Get order details with related data
         const query = `
           SELECT 
@@ -2303,6 +2318,7 @@ class Database {
 
   async sendOrderDeclineEmailNotification(requestId, reason) {
     try {
+      const pool = await this.ensurePool();
       // Get order request details
         const query = `
           SELECT 
