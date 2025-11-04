@@ -45,31 +45,45 @@ class ImageExtractor {
                 return;
               }
 
-              // Generate unique filename
-              const originalName = path.basename(entry.fileName);
-              const extension = path.extname(originalName).toLowerCase();
-              const uniqueName = `${uuidv4()}${extension}`;
-              const outputPath = path.join(this.imagesDir, uniqueName);
+              // Read image into buffer and convert to base64 (for database storage, not filesystem)
+              const chunks = [];
               
-              // Create write stream
-              const writeStream = fs.createWriteStream(outputPath);
-              
-              readStream.pipe(writeStream);
-              
-              writeStream.on('close', () => {
-                console.log('✅ Extracted image:', uniqueName);
-                extractedImages.push({
-                  originalName: originalName,
-                  fileName: uniqueName,
-                  filePath: outputPath,
-                  relativePath: `uploads/images/${uniqueName}`,
-                  webPath: `/uploads/images/${uniqueName}`
-                });
-                zipfile.readEntry();
+              readStream.on('data', (chunk) => {
+                chunks.push(chunk);
               });
               
-              writeStream.on('error', (err) => {
-                console.error('❌ Error writing image file:', err);
+              readStream.on('end', () => {
+                try {
+                  const imageBuffer = Buffer.concat(chunks);
+                  const originalName = path.basename(entry.fileName);
+                  const extension = path.extname(originalName).toLowerCase();
+                  
+                  // Determine MIME type
+                  let mimeType = 'image/jpeg';
+                  if (extension === '.png') mimeType = 'image/png';
+                  else if (extension === '.gif') mimeType = 'image/gif';
+                  else if (extension === '.webp') mimeType = 'image/webp';
+                  else if (extension === '.bmp') mimeType = 'image/bmp';
+                  
+                  // Convert to base64 data URL
+                  const base64Image = imageBuffer.toString('base64');
+                  const dataUrl = `data:${mimeType};base64,${base64Image}`;
+                  
+                  console.log(`✅ Extracted image as base64: ${originalName} (${Math.round(dataUrl.length / 1024)}KB)`);
+                  extractedImages.push({
+                    originalName: originalName,
+                    base64: dataUrl,
+                    mimeType: mimeType
+                  });
+                  zipfile.readEntry();
+                } catch (err) {
+                  console.error('❌ Error processing image:', err);
+                  zipfile.readEntry();
+                }
+              });
+              
+              readStream.on('error', (err) => {
+                console.error('❌ Error reading image stream:', err);
                 zipfile.readEntry();
               });
             });
@@ -121,12 +135,13 @@ class ImageExtractor {
         const imageNumber = parseInt(match[1]);
         
         // Only map images that have corresponding rows
+        // Use base64 if available, otherwise fallback to webPath for backwards compatibility
         if (imageNumber > 0 && imageNumber <= totalRows) {
-          imageMap[imageNumber] = image.webPath;
+          imageMap[imageNumber] = image.base64 || image.webPath;
           assignedImageCount++;
-          console.log(`🔗 Mapped ${image.fileName} (image${imageNumber}) to row ${imageNumber}`);
+          console.log(`🔗 Mapped ${image.originalName} (image${imageNumber}) to row ${imageNumber}`);
         } else {
-          console.log(`⚠️ Skipping ${image.fileName} (image${imageNumber}) - exceeds total rows (${totalRows})`);
+          console.log(`⚠️ Skipping ${image.originalName} (image${imageNumber}) - exceeds total rows (${totalRows})`);
         }
       } else {
         console.log(`⚠️ Could not extract number from ${image.originalName}`);
@@ -164,8 +179,9 @@ class ImageExtractor {
       });
       
       if (matchingImage) {
-        imageMap[index] = matchingImage.webPath;
-        console.log(`🔗 Matched ${matchingImage.fileName} to "${material.material}"`);
+        // Use base64 if available, otherwise fallback to webPath for backwards compatibility
+        imageMap[index] = matchingImage.base64 || matchingImage.webPath;
+        console.log(`🔗 Matched ${matchingImage.originalName || matchingImage.fileName} to "${material.material}"`);
       }
     });
     

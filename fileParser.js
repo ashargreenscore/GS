@@ -516,32 +516,33 @@ class FileParser {
           
           console.log(`📸 Found ${imageFiles.length} image files`);
           
-          // Copy images to uploads/images and create mapping
-          const uploadsImagesDir = path.join(__dirname, 'uploads', 'images');
-          if (!fs.existsSync(uploadsImagesDir)) {
-            fs.mkdirSync(uploadsImagesDir, { recursive: true });
-          }
-          
+          // Convert images to base64 and store in database (not filesystem - for Render compatibility)
           for (const imageFile of imageFiles) {
             try {
               const sourcePath = path.join(imagesDir, imageFile);
-              const uniqueName = `${uuidv4()}${path.extname(imageFile)}`;
-              const destPath = path.join(uploadsImagesDir, uniqueName);
+              const imageBuffer = fs.readFileSync(sourcePath);
+              const ext = path.extname(imageFile).toLowerCase();
               
-              // Copy image file
-              fs.copyFileSync(sourcePath, destPath);
+              // Determine MIME type
+              let mimeType = 'image/jpeg';
+              if (ext === '.png') mimeType = 'image/png';
+              else if (ext === '.gif') mimeType = 'image/gif';
+              else if (ext === '.webp') mimeType = 'image/webp';
+              else if (ext === '.bmp') mimeType = 'image/bmp';
+              
+              // Convert to base64 data URL
+              const base64Image = imageBuffer.toString('base64');
+              const dataUrl = `data:${mimeType};base64,${base64Image}`;
               
               extractedImages.push({
                 originalName: imageFile,
-                fileName: uniqueName,
-                filePath: destPath,
-                relativePath: `uploads/images/${uniqueName}`,
-                webPath: `/uploads/images/${uniqueName}`
+                base64: dataUrl,
+                mimeType: mimeType
               });
               
-              console.log(`📸 Copied ${imageFile} → ${uniqueName}`);
+              console.log(`📸 Converted ${imageFile} to base64 (${Math.round(dataUrl.length / 1024)}KB)`);
             } catch (imgError) {
-              console.error(`⚠️ Error copying image ${imageFile}:`, imgError.message);
+              console.error(`⚠️ Error converting image ${imageFile}:`, imgError.message);
             }
           }
           
