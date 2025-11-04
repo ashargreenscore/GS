@@ -435,20 +435,11 @@ function populateCategoryFilters() {
     const categoryFilter = document.getElementById('category-filter');
     if (!categoryFilter) return;
 
-    // If the sidebar categories list is present, hide the top dropdown to avoid duplicates
-    const sidebarCategoryList = document.getElementById('category-list');
-    if (sidebarCategoryList) {
-        // Keep value as 'all' but hide the control entirely
-        categoryFilter.value = 'all';
-        const wrapper = categoryFilter.parentElement;
-        if (wrapper) wrapper.style.display = 'none';
-        return;
-    }
-
     // Reset to default to avoid duplicate options on re-renders
     categoryFilter.innerHTML = '<option value="all">All Categories</option>';
-    
-    categories.forEach(category => {
+    // Ensure unique, sorted categories
+    const uniqueCategories = [...new Set(categories)].sort();
+    uniqueCategories.forEach(category => {
         const option = document.createElement('option');
         option.value = category;
         option.textContent = category;
