@@ -394,44 +394,48 @@ function displayMaterialsGrid() {
         let imageUrl = null;
         
         // Parse photo - handle all possible formats
+        // Photos can be: JSON array, JSON string, base64 data URL, HTTP URL, or plain string
         if (material.photo) {
             const photoValue = material.photo;
             const photoStr = String(photoValue).trim();
             
             // Skip empty/null/undefined values
-            if (photoStr && photoStr !== '' && photoStr !== 'null' && photoStr !== 'undefined' && photoStr !== '""' && photoStr !== '[]') {
+            if (photoStr && photoStr !== '' && photoStr !== 'null' && photoStr !== 'undefined' && photoStr !== '""' && photoStr !== '[]' && photoStr.length > 10) {
                 try {
-                    // Try parsing as JSON (could be array or string)
+                    // Try parsing as JSON first
                     const parsed = JSON.parse(photoStr);
                     
                     if (Array.isArray(parsed)) {
                         // Array of photos - get first valid one
                         const validPhoto = parsed.find(p => {
                             const pStr = String(p || '').trim();
-                            return pStr && pStr !== '' && pStr !== 'null' && pStr !== 'undefined';
+                            return pStr && pStr !== '' && pStr !== 'null' && pStr !== 'undefined' && pStr.length > 10;
                         });
                         if (validPhoto) {
                             imageUrl = String(validPhoto).trim();
                         }
-                    } else if (typeof parsed === 'string' && parsed.trim() !== '') {
+                    } else if (typeof parsed === 'string' && parsed.trim() !== '' && parsed.trim().length > 10) {
                         // Single photo string from JSON
                         imageUrl = parsed.trim();
-                    } else if (photoStr) {
-                        // Fallback to original string
-                        imageUrl = photoStr;
                     }
                 } catch (e) {
-                    // Not valid JSON, check if it's a base64 string or URL
+                    // Not valid JSON, use as-is if it looks like image data
+                    // Accept base64 data URLs, HTTP URLs, or long strings (likely base64)
                     if (photoStr.startsWith('data:image/') || 
                         photoStr.startsWith('http://') || 
                         photoStr.startsWith('https://') || 
                         photoStr.startsWith('/') ||
-                        photoStr.length > 50) {
+                        photoStr.length > 100) {
                         // Likely base64 data URL, HTTP URL, or file path
                         imageUrl = photoStr;
                     }
                 }
             }
+        }
+        
+        // Debug for first material
+        if (materials.indexOf(material) === 0) {
+            console.log(`[Admin Grid] Material: ${material.material}, Photo exists: ${!!material.photo}, ImageUrl: ${imageUrl ? 'YES (' + imageUrl.substring(0, 30) + '...)' : 'NO'}`);
         }
         
         return `
@@ -921,36 +925,36 @@ function viewMaterialDetails(materialId) {
     // Parse photo - handle all possible formats
     let photos = [];
     
+    console.log(`[Admin Detail] Material: ${material.material}, Photo exists: ${!!material.photo}, Photo type: ${typeof material.photo}, Photo length: ${material.photo ? String(material.photo).length : 0}`);
+    
     if (material.photo) {
         const photoValue = material.photo;
         const photoStr = String(photoValue).trim();
         
         // Skip empty/null/undefined values
-        if (photoStr && photoStr !== '' && photoStr !== 'null' && photoStr !== 'undefined' && photoStr !== '""' && photoStr !== '[]') {
+        if (photoStr && photoStr !== '' && photoStr !== 'null' && photoStr !== 'undefined' && photoStr !== '""' && photoStr !== '[]' && photoStr.length > 10) {
             try {
-                // Try parsing as JSON (could be array or string)
+                // Try parsing as JSON first
                 const parsed = JSON.parse(photoStr);
                 
                 if (Array.isArray(parsed)) {
                     // Array of photos - filter valid ones
                     photos = parsed.filter(p => {
                         const pStr = String(p || '').trim();
-                        return pStr && pStr !== '' && pStr !== 'null' && pStr !== 'undefined';
+                        return pStr && pStr !== '' && pStr !== 'null' && pStr !== 'undefined' && pStr.length > 10;
                     });
-                } else if (typeof parsed === 'string' && parsed.trim() !== '') {
+                } else if (typeof parsed === 'string' && parsed.trim() !== '' && parsed.trim().length > 10) {
                     // Single photo string from JSON
                     photos = [parsed.trim()];
-                } else if (photoStr) {
-                    // Fallback to original string
-                    photos = [photoStr];
                 }
             } catch (e) {
-                // Not valid JSON, check if it's a base64 string or URL
+                // Not valid JSON, use as-is if it looks like image data
+                // Accept base64 data URLs, HTTP URLs, or long strings (likely base64)
                 if (photoStr.startsWith('data:image/') || 
                     photoStr.startsWith('http://') || 
                     photoStr.startsWith('https://') || 
                     photoStr.startsWith('/') ||
-                    photoStr.length > 50) {
+                    photoStr.length > 100) {
                     // Likely base64 data URL, HTTP URL, or file path
                     photos = [photoStr];
                 }
@@ -959,6 +963,8 @@ function viewMaterialDetails(materialId) {
     }
     
     const imageUrl = photos.length > 0 ? photos[0] : null;
+    
+    console.log(`[Admin Detail] Parsed ${photos.length} photos, ImageUrl: ${imageUrl ? 'YES' : 'NO'}`);
     
     const detailsHTML = `
         <div class="detail-view-grid">
