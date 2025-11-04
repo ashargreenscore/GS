@@ -391,26 +391,43 @@ function displayMaterialsGrid() {
     
     gridContainer.innerHTML = materials.map(material => {
         // Parse photo - could be JSON array or base64 string
-        let imageUrl = 'https://via.placeholder.com/400x300/f3f4f6/9ca3af?text=No+Image';
-        if (material.photo) {
+        let imageUrl = null;
+        if (material.photo && material.photo.trim() !== '' && material.photo !== 'null' && material.photo !== 'undefined') {
             try {
                 const parsed = JSON.parse(material.photo);
                 if (Array.isArray(parsed) && parsed.length > 0) {
                     imageUrl = parsed[0];
-                } else if (parsed && typeof parsed === 'string') {
+                } else if (parsed && typeof parsed === 'string' && parsed.trim() !== '') {
                     imageUrl = parsed;
-                } else {
+                } else if (typeof material.photo === 'string' && material.photo.trim() !== '') {
                     imageUrl = material.photo;
                 }
             } catch {
                 // Not JSON, use as-is (could be base64 or URL)
-                imageUrl = material.photo;
+                if (material.photo && material.photo.trim() !== '' && material.photo !== 'null') {
+                    imageUrl = material.photo;
+                }
             }
         }
         
         return `
             <div class="material-card">
-                <img src="${imageUrl}" alt="${material.material}" class="material-card-image" onerror="this.src='https://via.placeholder.com/400x300/f3f4f6/9ca3af?text=No+Image'">
+                ${imageUrl ? `
+                    <img src="${imageUrl}" 
+                         alt="${material.material}" 
+                         class="material-card-image" 
+                         style="width: 100%; height: 200px; object-fit: contain; background: #f3f4f6; padding: 0.5rem;"
+                         onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div style="display:none; width: 100%; height: 200px; background: #f3f4f6; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af;">
+                        <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                        <span style="font-size: 0.875rem;">No Image</span>
+                    </div>
+                ` : `
+                    <div style="width: 100%; height: 200px; background: #f3f4f6; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af;">
+                        <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                        <span style="font-size: 0.875rem;">No Image</span>
+                    </div>
+                `}
                 <div class="material-card-content">
                     <div class="material-card-title">${material.material}</div>
                     ${material.brand ? `<div style="color: #6b7280; font-size: 0.875rem; margin-bottom: 0.5rem;">${material.brand}</div>` : ''}
