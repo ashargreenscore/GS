@@ -877,12 +877,72 @@ function viewMaterialDetails(materialId) {
     const material = materials.find(m => m.id === materialId);
     if (!material) return;
     
-    const imageUrl = material.photo || 'https://via.placeholder.com/600x400/f3f4f6/9ca3af?text=No+Image';
+    // Parse photo - could be JSON array or base64 string
+    let photos = [];
+    if (material.photo) {
+        try {
+            const parsed = JSON.parse(material.photo);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                photos = parsed;
+            } else if (parsed && typeof parsed === 'string') {
+                photos = [parsed];
+            } else {
+                photos = [material.photo];
+            }
+        } catch {
+            // Not JSON, use as-is (could be base64 or URL)
+            photos = [material.photo];
+        }
+    }
+    const imageUrl = photos.length > 0 ? photos[0] : 'https://via.placeholder.com/600x400/f3f4f6/9ca3af?text=No+Image';
     
     const detailsHTML = `
         <div class="detail-view-grid">
             <div class="detail-view-image">
-                <img src="${imageUrl}" alt="${material.material}" onerror="this.src='https://via.placeholder.com/600x400/f3f4f6/9ca3af?text=No+Image'">
+                ${photos.length > 0 ? `
+                    ${photos.length > 1 ? `
+                        <div style="position: relative; width: 100%; height: 100%;">
+                            <div id="material-detail-slideshow-${material.id}" style="position: relative; width: 100%; height: 100%; overflow: hidden;">
+                                ${photos.map((photo, index) => `
+                                    <img src="${photo}" 
+                                         alt="${material.material} - Photo ${index + 1}" 
+                                         class="material-detail-slide ${index === 0 ? 'active' : ''}"
+                                         data-index="${index}"
+                                         style="display: ${index === 0 ? 'block' : 'none'}; width: 100%; height: 100%; object-fit: contain; background: #f3f4f6; padding: 1rem;"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                    <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                                        <i class="fas fa-image" style="font-size:3rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                                        <span style="font-size: 1rem; font-weight: 500;">No Image</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <button onclick="changeMaterialDetailSlide('${material.id}', -1)" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; z-index: 10;">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <button onclick="changeMaterialDetailSlide('${material.id}', 1)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; z-index: 10;">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                            <div style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 10;">
+                                ${photos.map((_, index) => `
+                                    <span class="material-detail-indicator ${index === 0 ? 'active' : ''}" 
+                                          onclick="goToMaterialDetailSlide('${material.id}', ${index})"
+                                          style="width: 10px; height: 10px; border-radius: 50%; background: ${index === 0 ? '#10b981' : 'rgba(255,255,255,0.5)'}; cursor: pointer; transition: background 0.3s;"></span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : `
+                        <img src="${imageUrl}" alt="${material.material}" style="width: 100%; height: 100%; object-fit: contain; background: #f3f4f6; padding: 1rem;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                            <i class="fas fa-image" style="font-size:3rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                            <span style="font-size: 1rem; font-weight: 500;">No Image</span>
+                        </div>
+                    `}
+                ` : `
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af; background: #f3f4f6;">
+                        <i class="fas fa-image" style="font-size:3rem; margin-bottom:0.5rem; opacity: 0.5;"></i>
+                        <span style="font-size: 1rem; font-weight: 500;">No Image</span>
+                    </div>
+                `}
             </div>
             
             <div class="detail-view-info">
