@@ -995,32 +995,11 @@ app.post('/api/order-requests', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing required order information' });
     }
     
-    // Get material info to find seller and price
-    const material = await new Promise((resolve, reject) => {
-      db.db.get('SELECT * FROM materials WHERE id = ?', [materialId], (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
-    
-    if (!material) {
-      return res.status(404).json({ success: false, error: 'Material not found' });
-    }
-    
-    if (quantity > material.quantity) {
-      return res.status(400).json({ success: false, error: 'Insufficient quantity available' });
-    }
-    
-    const unitPrice = material.price_today;
-    const totalAmount = unitPrice * quantity;
-    
+    // Let the DB layer validate availability and pull seller/price to avoid direct DB access here
     const requestData = {
       materialId,
       buyerId,
-      sellerId: material.seller_id,
       quantity,
-      unitPrice,
-      totalAmount,
       companyName,
       contactPerson,
       email,
@@ -1050,9 +1029,7 @@ app.post('/api/order-requests', async (req, res) => {
       res.json({ 
         success: true, 
         message: 'Order request submitted successfully',
-        requestId: requestResult.requestId,
-        material: material.material,
-        sellerId: material.seller_id
+        requestId: requestResult.requestId
       });
     } else {
       res.status(500).json({ success: false, error: 'Failed to create order request' });
@@ -1060,7 +1037,7 @@ app.post('/api/order-requests', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Create order request error:', error);
-    res.status(500).json({ success: false, error: 'Failed to process order request' });
+    res.status(500).json({ success: false, error: 'Failed to process order request', message: error.message });
   }
 });
 

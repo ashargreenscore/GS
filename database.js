@@ -1092,15 +1092,32 @@ class Database {
       const { v4: uuidv4 } = require('uuid');
       const requestId = uuidv4();
       
-      // First get material details for notification
+      // Fetch material details (seller, price, qty) and validate availability
       const materialResult = await pool.query(
-        'SELECT material, listing_id FROM materials WHERE id = $1',
+        'SELECT id, seller_id, material, listing_id, quantity, price_today FROM materials WHERE id = $1',
         [requestData.materialId]
       );
-      
+      if (materialResult.rows.length === 0) {
+        throw new Error('Material not found');
+      }
       const material = materialResult.rows[0];
-          
-          // Create the order request
+
+      const requestedQty = parseInt(requestData.quantity, 10);
+      const availableQty = parseInt(material.quantity, 10) || 0;
+      if (!requestedQty || requestedQty <= 0) {
+        throw new Error('Invalid quantity');
+      }
+      if (requestedQty > availableQty) {
+        throw new Error('Insufficient quantity available');
+      }
+
+      const unitPrice = requestData.unitPrice !== undefined ? requestData.unitPrice : parseFloat(material.price_today || 0);
+      const totalAmount = requestData.totalAmount !== undefined ? requestData.totalAmount : unitPrice * requestedQty;
+
+      // Default seller from material
+      const sellerId = requestData.sellerId || material.seller_id;
+
+      // Create the order request
       await pool.query(
             `INSERT INTO order_requests (
               id, material_id, buyer_id, seller_id, quantity, unit_price, total_amount,
@@ -1108,8 +1125,8 @@ class Database {
               delivery_address, delivery_notes
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
             [
-              requestId, requestData.materialId, requestData.buyerId, requestData.sellerId, 
-              requestData.quantity, requestData.unitPrice, requestData.totalAmount,
+              requestId, requestData.materialId, requestData.buyerId, sellerId, 
+              requestedQty, unitPrice, totalAmount,
               requestData.companyName, requestData.contactPerson, requestData.email, 
               requestData.phone, requestData.deliveryAddress, requestData.deliveryNotes || ''
         ]
@@ -1124,9 +1141,9 @@ class Database {
           ) VALUES ($1, $2, $3, $4, $5, $6)`,
                 [
                   notificationId,
-                  requestData.sellerId,
+                  sellerId,
                   'New Order Request!',
-                  `${requestData.contactPerson || 'A buyer'} from ${requestData.companyName || 'Unknown Company'} wants to purchase ${requestData.quantity} units of ${material?.material || 'your material'} (${material?.listing_id || 'N/A'})`,
+                  `${requestData.contactPerson || 'A buyer'} from ${requestData.companyName || 'Unknown Company'} wants to purchase ${requestedQty} units of ${material?.material || 'your material'} (${material?.listing_id || 'N/A'})`,
                   'new_order_request',
                   requestId
           ]
@@ -1143,6 +1160,7 @@ class Database {
                   
       return { success: true, requestId };
     } catch (error) {
+      console.error('createOrderRequest error:', error.message);
       throw error;
     }
   }
