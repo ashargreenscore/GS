@@ -392,22 +392,49 @@ function displayMaterialsGrid() {
     gridContainer.innerHTML = materials.map(material => {
         // Parse photo - could be JSON array or base64 string
         let imageUrl = null;
-        if (material.photo && material.photo.trim() !== '' && material.photo !== 'null' && material.photo !== 'undefined') {
-            try {
-                const parsed = JSON.parse(material.photo);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    imageUrl = parsed[0];
-                } else if (parsed && typeof parsed === 'string' && parsed.trim() !== '') {
-                    imageUrl = parsed;
-                } else if (typeof material.photo === 'string' && material.photo.trim() !== '') {
-                    imageUrl = material.photo;
-                }
-            } catch {
-                // Not JSON, use as-is (could be base64 or URL)
-                if (material.photo && material.photo.trim() !== '' && material.photo !== 'null') {
-                    imageUrl = material.photo;
+        
+        // Debug: Log photo data for first few materials
+        if (materials.indexOf(material) < 3) {
+            console.log(`Material ${material.material}:`, {
+                hasPhoto: !!material.photo,
+                photoType: typeof material.photo,
+                photoLength: material.photo ? material.photo.length : 0,
+                photoPreview: material.photo ? material.photo.substring(0, 50) : 'null'
+            });
+        }
+        
+        if (material.photo) {
+            const photoStr = String(material.photo).trim();
+            
+            // Skip empty strings, "null", "undefined"
+            if (photoStr && photoStr !== '' && photoStr !== 'null' && photoStr !== 'undefined' && photoStr !== '""') {
+                try {
+                    // Try parsing as JSON first
+                    const parsed = JSON.parse(photoStr);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        // Get first valid photo from array
+                        const validPhoto = parsed.find(p => p && String(p).trim() !== '' && String(p) !== 'null');
+                        if (validPhoto) {
+                            imageUrl = String(validPhoto).trim();
+                        }
+                    } else if (parsed && typeof parsed === 'string' && parsed.trim() !== '') {
+                        imageUrl = parsed.trim();
+                    } else if (typeof material.photo === 'string' && photoStr !== '') {
+                        imageUrl = photoStr;
+                    }
+                } catch (e) {
+                    // Not JSON, use as-is (could be base64 or URL)
+                    if (photoStr.startsWith('data:image/') || photoStr.startsWith('http://') || photoStr.startsWith('https://') || photoStr.length > 100) {
+                        // Likely base64 or URL
+                        imageUrl = photoStr;
+                    }
                 }
             }
+        }
+        
+        // Debug: Log final imageUrl for first material
+        if (materials.indexOf(material) === 0) {
+            console.log(`Final imageUrl for ${material.material}:`, imageUrl ? 'Has URL' : 'No URL', imageUrl ? imageUrl.substring(0, 50) : '');
         }
         
         return `
@@ -896,22 +923,43 @@ function viewMaterialDetails(materialId) {
     
     // Parse photo - could be JSON array or base64 string
     let photos = [];
+    
+    console.log('Material detail photo debug:', {
+        material: material.material,
+        hasPhoto: !!material.photo,
+        photoType: typeof material.photo,
+        photoPreview: material.photo ? String(material.photo).substring(0, 100) : 'null'
+    });
+    
     if (material.photo) {
-        try {
-            const parsed = JSON.parse(material.photo);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                photos = parsed;
-            } else if (parsed && typeof parsed === 'string') {
-                photos = [parsed];
-            } else {
-                photos = [material.photo];
+        const photoStr = String(material.photo).trim();
+        
+        // Skip empty strings, "null", "undefined"
+        if (photoStr && photoStr !== '' && photoStr !== 'null' && photoStr !== 'undefined' && photoStr !== '""') {
+            try {
+                // Try parsing as JSON first
+                const parsed = JSON.parse(photoStr);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    // Filter out invalid entries
+                    photos = parsed.filter(p => p && String(p).trim() !== '' && String(p) !== 'null');
+                } else if (parsed && typeof parsed === 'string' && parsed.trim() !== '') {
+                    photos = [parsed.trim()];
+                } else if (photoStr) {
+                    photos = [photoStr];
+                }
+            } catch (e) {
+                // Not JSON, use as-is (could be base64 or URL)
+                if (photoStr.startsWith('data:image/') || photoStr.startsWith('http://') || photoStr.startsWith('https://') || photoStr.length > 100) {
+                    // Likely base64 or URL
+                    photos = [photoStr];
+                }
             }
-        } catch {
-            // Not JSON, use as-is (could be base64 or URL)
-            photos = [material.photo];
         }
     }
-    const imageUrl = photos.length > 0 ? photos[0] : 'https://via.placeholder.com/600x400/f3f4f6/9ca3af?text=No+Image';
+    
+    const imageUrl = photos.length > 0 ? photos[0] : null;
+    
+    console.log('Parsed photos:', photos.length, imageUrl ? 'Has URL' : 'No URL');
     
     const detailsHTML = `
         <div class="detail-view-grid">
