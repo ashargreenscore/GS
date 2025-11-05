@@ -49,31 +49,15 @@ function addSellerHelpButton() {
     const btn = document.createElement('div');
     btn.id = 'seller-help-btn';
     btn.className = 'gs-tour-help-btn';
-    btn.title = 'Show guide';
+    btn.title = 'Ask AI Assistant';
     btn.innerHTML = '<i class="fas fa-question"></i>';
     btn.onclick = () => {
-        // Always run a manual tour regardless of dismissed flag
-        const userJson = localStorage.getItem('currentUser');
-        let userId = 'guest';
-        try { if (userJson) userId = JSON.parse(userJson).id || 'guest'; } catch {}
-        if (!window.GuidedTour) {
-            const s = document.createElement('script'); s.src='/guided-tour.js'; s.onload=()=>btn.click(); document.head.appendChild(s);
-            const l = document.createElement('link'); l.rel='stylesheet'; l.href='/guided-tour.css'; document.head.appendChild(l);
+        if (!window.openAssistant) {
+            const s = document.createElement('script'); s.src='/ai-assistant.js'; s.onload=()=>window.openAssistant(); document.head.appendChild(s);
+            const l = document.createElement('link'); l.rel='stylesheet'; l.href='/ai-assistant.css'; document.head.appendChild(l);
             return;
         }
-        const selectFirst = (sel)=>{ const n=document.querySelectorAll(sel); return n && n.length ? n[0] : null; };
-        const firstInventoryCard = ()=> selectFirst('.inventory-grid .material-card, .inventory-grid .product-card, #materials-grid .material-card');
-        const profileBtn = ()=> selectFirst('#profile-dropdown-button, .profile-dropdown-toggle, .nav .user-menu, .nav [data-profile]');
-        const steps = [
-            { element: '.tab-buttons, .tabs', title: 'Tabs', content: 'Navigate to different sections of your dashboard.' },
-            { element: firstInventoryCard, title: 'Inventory Card', content: 'This is one of your materials. Click to view, edit, or manage photos.' },
-            { element: '#bulk-upload, .upload-section', title: 'Bulk Upload', content: 'Upload a ZIP/Excel to add multiple materials at once.' },
-            { element: '#order-requests-tab, #order-requests', title: 'Order Requests', content: 'View and respond to buyer requests here.' },
-            { element: '#orders-tab, #orders', title: 'Orders', content: 'Track your approved orders and their status.' },
-            { element: profileBtn, title: 'Your Profile', content: 'Open your profile to manage account details and see activity.' }
-        ];
-        const tour = new GuidedTour(steps, { storageKey: `gs_tour_seller_manual_${userId}` });
-        tour.start();
+        window.openAssistant();
     };
     document.body.appendChild(btn);
 }

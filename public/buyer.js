@@ -396,32 +396,15 @@ function addBuyerHelpButton() {
     const btn = document.createElement('div');
     btn.id = 'buyer-help-btn';
     btn.className = 'gs-tour-help-btn';
-    btn.title = 'Show guide';
+    btn.title = 'Ask AI Assistant';
     btn.innerHTML = '<i class="fas fa-question"></i>';
     btn.onclick = () => {
-        if (!window.GuidedTour) {
-            const s = document.createElement('script'); s.src='/guided-tour.js'; s.onload = ()=>btn.click(); document.head.appendChild(s);
-            const l = document.createElement('link'); l.rel='stylesheet'; l.href='/guided-tour.css'; document.head.appendChild(l);
+        if (!window.openAssistant) {
+            const s = document.createElement('script'); s.src='/ai-assistant.js'; s.onload=()=>window.openAssistant(); document.head.appendChild(s);
+            const l = document.createElement('link'); l.rel='stylesheet'; l.href='/ai-assistant.css'; document.head.appendChild(l);
             return;
         }
-        // Decide between profile tour and marketplace tour
-        const isProfile = !!document.querySelector('.profile-tabs');
-        const steps = isProfile ? [
-            { element: '.profile-tabs', title: 'Account Sections', content: 'Switch between Account, Orders, Requests and more.' },
-            { element: '#profile-details, .profile-details', title: 'Your Details', content: 'View and edit your personal and company information.' },
-            { element: '#orders-section, #profile-orders', title: 'Your Orders', content: 'Track order status and history here.' },
-            { element: '#requests-section, #profile-requests', title: 'Order Requests', content: 'See the order requests you have made and their status.' }
-        ] : [
-            { element: '.header .nav', title: 'Navigation', content: 'Use the header to switch between Marketplace, Cart, and your profile.' },
-            { element: '#search-input', title: 'Search', content: 'Search by material name, brand, or specs.' },
-            { element: '#category-filter', title: 'Quick Filters', content: 'Use the filters (Category, Condition, Project, Location) to narrow results.' },
-            { element: '#category-list', title: 'Categories Sidebar', content: 'Browse by category with counts. This stays fixed for easy access.' },
-            { element: '#products-grid', title: 'Materials', content: 'Tap a card to see details, photos, and add to cart.' },
-            { element: '#cart-button, .cart-button', title: 'Cart', content: 'Review your selected items and place order requests from the cart.' }
-        ];
-        // Manual tour always runs regardless of dismissed flag
-        const tour = new GuidedTour(steps, { storageKey: `gs_tour_buyer_manual_${(currentUser&&currentUser.id)||'guest'}` });
-        tour.start();
+        window.openAssistant();
     };
     document.body.appendChild(btn);
 }

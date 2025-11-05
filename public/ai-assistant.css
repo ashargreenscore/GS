@@ -1,0 +1,12 @@
+.gs-assist-launcher { position: fixed; right: 16px; bottom: 16px; width: 56px; height: 56px; border-radius: 999px; background:#10b981; color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px rgba(16,185,129,.35); z-index: 11000; cursor:pointer; }
+.gs-assist-panel { position: fixed; right: 16px; bottom: 80px; width: min(380px, 92vw); height: 520px; background:#fff; border-radius: 14px; box-shadow:0 16px 40px rgba(0,0,0,.25); z-index: 11001; display:flex; flex-direction:column; overflow:hidden; }
+.gs-assist-header { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:#0ea5e9; color:#fff; }
+.gs-assist-body { flex:1; overflow:auto; background:#f8fafc; padding:12px; }
+.gs-assist-input { display:flex; gap:8px; padding:10px; background:#fff; border-top:1px solid #e5e7eb; }
+.gs-assist-input input { flex:1; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; }
+.gs-msg { max-width:85%; padding:8px 12px; margin:8px 0; border-radius:12px; font-size:14px; line-height:1.35; }
+.gs-msg.user { background:#e5f6ff; margin-left:auto; border-bottom-right-radius:4px; }
+.gs-msg.bot { background:#111827; color:#fff; margin-right:auto; border-bottom-left-radius:4px; }
+.gs-suggestion { display:inline-block; background:#eef2ff; color:#3730a3; border-radius:999px; padding:6px 10px; margin:4px 6px 0 0; font-size:12px; cursor:pointer; }
+.gs-assist-close { cursor:pointer; }
+
