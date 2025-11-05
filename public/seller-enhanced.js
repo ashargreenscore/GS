@@ -12,14 +12,30 @@ function initSellerTour() {
     const dismissedKey = `gs_tour_seller_dismissed_${userId}`;
     if (localStorage.getItem(dismissedKey) === '1') return;
     const selectFirst = (sel)=>{ const n=document.querySelectorAll(sel); return n && n.length ? n[0] : null; };
+    const findByText = (rootSel, texts=[])=>{
+        const nodes = document.querySelectorAll(rootSel);
+        for (const n of nodes){
+            const t = (n.textContent||'').trim().toLowerCase();
+            if (texts.some(x=>t.includes(x))) return n;
+        }
+        return null;
+    };
+    const tabMyInventory = ()=> findByText('.tab-btn, .tabs button, .tab, .nav-tabs button', ['inventory','my inventory']);
     const firstInventoryCard = ()=> selectFirst('.inventory-grid .material-card, .inventory-grid .product-card, #materials-grid .material-card');
+    const btnAddSingle = ()=> findByText('button, a', ['add item','add material','add single']);
+    const bulkUpload = ()=> selectFirst('#bulk-upload, .upload-section, [data-bulk-upload]');
+    const orderRequestsTab = ()=> selectFirst('#order-requests-tab, #order-requests, [data-tab="order-requests"]');
+    const ordersTab = ()=> selectFirst('#orders-tab, #orders, [data-tab="orders"]');
+    const notificationsBtn = ()=> selectFirst('.header .fa-bell, .notifications-button, #notifications-btn, [data-notifications]');
     const profileBtn = ()=> selectFirst('#profile-dropdown-button, .profile-dropdown-toggle, .nav .user-menu, .nav [data-profile]');
     const steps = [
-        { element: '.tab-buttons, .tabs', title: 'Tabs', content: 'Navigate to different sections of your dashboard.' },
-        { element: firstInventoryCard, title: 'Inventory Card', content: 'This is one of your materials. Click to view, edit, or manage photos.' },
-        { element: '#bulk-upload, .upload-section', title: 'Bulk Upload', content: 'Upload a ZIP/Excel to add multiple materials at once.' },
-        { element: '#order-requests-tab, #order-requests', title: 'Order Requests', content: 'View and respond to buyer requests here.' },
-        { element: '#orders-tab, #orders', title: 'Orders', content: 'Track your approved orders and their status.' },
+        { element: tabMyInventory, title: 'My Inventory', content: 'Your materials live here. Use this tab to manage your inventory.' },
+        { element: firstInventoryCard, title: 'Inventory Item', content: 'This is one of your materials. Click to view, edit, or manage photos.' },
+        { element: btnAddSingle, title: 'Add Single Item', content: 'Quickly add one new material from here.' },
+        { element: bulkUpload, title: 'Bulk Upload', content: 'Upload a ZIP/Excel to add multiple materials at once.' },
+        { element: notificationsBtn, title: 'Notifications', content: 'Watch for new order requests and important updates here.' },
+        { element: orderRequestsTab, title: 'Order Requests', content: 'View and respond to buyer requests.' },
+        { element: ordersTab, title: 'Orders', content: 'Track approved orders and their status.' },
         { element: profileBtn, title: 'Your Profile', content: 'Open your profile to manage account details and see activity.' }
     ];
     GuidedTour.showWelcome({}, () => {
