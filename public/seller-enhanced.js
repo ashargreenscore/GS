@@ -1,3 +1,43 @@
+// --- Seller Guided Tour ---
+function initSellerTour() {
+    // Lazy-load assets if needed
+    if (!window.GuidedTour) {
+        const s = document.createElement('script'); s.src='/guided-tour.js'; s.onload=()=>setTimeout(initSellerTour,100); document.head.appendChild(s);
+        const l = document.createElement('link'); l.rel='stylesheet'; l.href='/guided-tour.css'; document.head.appendChild(l);
+        return;
+    }
+    if (localStorage.getItem('gs_tour_seller_dismissed') === '1') return;
+    const steps = [
+        { element: '.header .nav', title: 'Navigation', content: 'Switch between Inventory, Orders, Requests and Profile.' },
+        { element: '.tab-buttons, .tabs', title: 'Tabs', content: 'Navigate to different sections of your dashboard.' },
+        { element: '#inventory-grid, .inventory-grid', title: 'Inventory', content: 'Your materials appear here. Click a card to view or edit.' },
+        { element: '#bulk-upload, .upload-section', title: 'Bulk Upload', content: 'Upload a ZIP/Excel to add multiple materials at once.' },
+        { element: '#order-requests-tab, #order-requests', title: 'Order Requests', content: 'View and respond to buyer requests here.' },
+        { element: '#orders-tab, #orders', title: 'Orders', content: 'Track your approved orders and their status.' }
+    ];
+    GuidedTour.showWelcome({}, () => {
+        const tour = new GuidedTour(steps, { storageKey: 'gs_tour_seller_dismissed' });
+        tour.start();
+    }, () => localStorage.setItem('gs_tour_seller_dismissed','1'));
+}
+
+function addSellerHelpButton() {
+    if (document.getElementById('seller-help-btn')) return;
+    const btn = document.createElement('div');
+    btn.id = 'seller-help-btn';
+    btn.className = 'gs-tour-help-btn';
+    btn.title = 'Show guide';
+    btn.innerHTML = '<i class="fas fa-question"></i>';
+    btn.onclick = initSellerTour;
+    document.body.appendChild(btn);
+}
+
+// Hook into existing init flow
+document.addEventListener('DOMContentLoaded', function(){
+    // Delay to ensure the dashboard has rendered
+    setTimeout(initSellerTour, 800);
+    setTimeout(addSellerHelpButton, 1000);
+});
 // Enhanced Seller Dashboard JavaScript with all new features
 
 let currentUser = null;

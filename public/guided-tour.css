@@ -1,0 +1,64 @@
+/* Lightweight guided tour styles */
+.gs-tour-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.55);
+  z-index: 9998;
+}
+
+.gs-tour-tooltip {
+  position: absolute;
+  max-width: 340px;
+  background: #111827;
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0,0,0,.25);
+  padding: 14px 14px 12px 14px;
+  z-index: 10000;
+}
+.gs-tour-tooltip h4 { margin: 0 0 6px 0; font-size: 16px; }
+.gs-tour-tooltip p { margin: 0 0 10px 0; font-size: 13px; line-height: 1.4; color: #e5e7eb; }
+.gs-tour-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.gs-tour-btn { cursor: pointer; border: none; border-radius: 8px; padding: 8px 12px; font-weight: 600; }
+.gs-tour-btn.primary { background: #10b981; color: #fff; }
+.gs-tour-btn.secondary { background: #374151; color: #fff; }
+.gs-tour-btn.link { background: transparent; color: #9ca3af; text-decoration: underline; }
+
+.gs-tour-highlight {
+  position: absolute;
+  border: 2px solid #10b981;
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(17, 24, 39, 0.5);
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.gs-tour-help-btn {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 9997;
+  background: #10b981;
+  color: #fff;
+  border-radius: 999px;
+  width: 48px; height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8px 20px rgba(16,185,129,0.35);
+  cursor: pointer;
+}
+
+.gs-tour-welcome {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10001;
+}
+.gs-tour-welcome .panel {
+  background: #fff; color: #111827; width: 92%; max-width: 520px; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.25);
+  padding: 20px;
+}
+.gs-tour-welcome h3 { margin: 0 0 6px 0; }
+.gs-tour-welcome p { margin: 0 0 14px 0; color: #374151; }
+.gs-tour-welcome .actions { display:flex; gap:10px; justify-content:flex-end; }
+.gs-tour-welcome .actions button { padding:10px 12px; border-radius:8px; border:none; font-weight:600; cursor:pointer; }
+.gs-tour-welcome .start { background:#10b981; color:#fff; }
+.gs-tour-welcome .skip { background:#e5e7eb; color:#111827; }
+
+
