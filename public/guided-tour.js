@@ -34,7 +34,14 @@
     showStep(i){
       this.index = i;
       const step = this.steps[i];
-      const el = typeof step.element === 'string' ? document.querySelector(step.element) : step.element;
+      let el = null;
+      if (typeof step.element === 'function') {
+        try { el = step.element(); } catch(e){ el = null; }
+      } else if (typeof step.element === 'string') {
+        el = document.querySelector(step.element);
+      } else {
+        el = step.element;
+      }
       if (!el){ this.next(); return; }
       const rect = el.getBoundingClientRect();
 
@@ -69,14 +76,31 @@
       const prev = this.tooltip.querySelector('[data-act="prev"]'); if (prev) prev.onclick = ()=>this.prev();
       this.tooltip.querySelector('[data-act="skip"]').onclick = ()=>this.skip();
 
-      // Position tooltip (below element by default)
+      // Position tooltip smartly: try right, then bottom, then left, then top
       const tRect = this.tooltip.getBoundingClientRect();
-      let top = rect.bottom + 10 + window.scrollY;
-      let left = rect.left;
-      if (left + tRect.width > window.innerWidth - 16) left = window.innerWidth - tRect.width - 16;
-      if (top + tRect.height > window.scrollY + window.innerHeight - 16) top = rect.top - tRect.height - 10 + window.scrollY;
+      const margin = 10;
+      let top = 0, left = 0;
+      const spaceRight = window.innerWidth - rect.right;
+      const spaceLeft = rect.left;
+      const spaceBottom = window.innerHeight - rect.bottom;
+      const spaceTop = rect.top;
+      if (spaceRight >= tRect.width + margin) {
+        // right
+        left = rect.right + margin; top = rect.top + window.scrollY;
+      } else if (spaceBottom >= tRect.height + margin) {
+        // bottom
+        left = Math.min(rect.left, window.innerWidth - tRect.width - margin); top = rect.bottom + margin + window.scrollY;
+      } else if (spaceLeft >= tRect.width + margin) {
+        // left
+        left = rect.left - tRect.width - margin; top = rect.top + window.scrollY;
+      } else {
+        // top
+        left = Math.min(rect.left, window.innerWidth - tRect.width - margin); top = rect.top - tRect.height - margin + window.scrollY;
+      }
+      left = Math.max(16, Math.min(left, window.innerWidth - tRect.width - 16));
+      top = Math.max(window.scrollY + 16, Math.min(top, window.scrollY + window.innerHeight - tRect.height - 16));
       this.tooltip.style.top = top + 'px';
-      this.tooltip.style.left = Math.max(16, left) + 'px';
+      this.tooltip.style.left = left + 'px';
 
       // Auto-scroll into view
       el.scrollIntoView({behavior:'smooth', block:'center'});

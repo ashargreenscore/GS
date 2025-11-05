@@ -7,13 +7,16 @@ function initSellerTour() {
         return;
     }
     if (localStorage.getItem('gs_tour_seller_dismissed') === '1') return;
+    const selectFirst = (sel)=>{ const n=document.querySelectorAll(sel); return n && n.length ? n[0] : null; };
+    const firstInventoryCard = ()=> selectFirst('.inventory-grid .material-card, .inventory-grid .product-card, #materials-grid .material-card');
+    const profileBtn = ()=> selectFirst('#profile-dropdown-button, .profile-dropdown-toggle, .nav .user-menu, .nav [data-profile]');
     const steps = [
-        { element: '.header .nav', title: 'Navigation', content: 'Switch between Inventory, Orders, Requests and Profile.' },
         { element: '.tab-buttons, .tabs', title: 'Tabs', content: 'Navigate to different sections of your dashboard.' },
-        { element: '#inventory-grid, .inventory-grid', title: 'Inventory', content: 'Your materials appear here. Click a card to view or edit.' },
+        { element: firstInventoryCard, title: 'Inventory Card', content: 'This is one of your materials. Click to view, edit, or manage photos.' },
         { element: '#bulk-upload, .upload-section', title: 'Bulk Upload', content: 'Upload a ZIP/Excel to add multiple materials at once.' },
         { element: '#order-requests-tab, #order-requests', title: 'Order Requests', content: 'View and respond to buyer requests here.' },
-        { element: '#orders-tab, #orders', title: 'Orders', content: 'Track your approved orders and their status.' }
+        { element: '#orders-tab, #orders', title: 'Orders', content: 'Track your approved orders and their status.' },
+        { element: profileBtn, title: 'Your Profile', content: 'Open your profile to manage account details and see activity.' }
     ];
     GuidedTour.showWelcome({}, () => {
         const tour = new GuidedTour(steps, { storageKey: 'gs_tour_seller_dismissed' });

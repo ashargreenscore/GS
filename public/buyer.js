@@ -370,13 +370,16 @@ function initBuyerTour() {
     }
     if (localStorage.getItem('gs_tour_buyer_dismissed') === '1') return;
 
+    const selectFirst = (sel)=>{ const n=document.querySelectorAll(sel); return n && n.length ? n[0] : null; };
+    const firstCard = ()=> selectFirst('#products-grid .product-card, #products-grid .material-card');
+    const profileBtn = ()=> selectFirst('#profile-dropdown-button, .profile-dropdown-toggle, .nav .user-menu, .nav [data-profile]');
     const steps = [
-        { element: '.header .nav', title: 'Navigation', content: 'Use the header to switch between Marketplace, Cart, and your profile.' },
         { element: '#search-input', title: 'Search', content: 'Search by material name, brand, or specs.' },
-        { element: '#category-filter', title: 'Quick Filters', content: 'Use these filters (Category, Condition, Project, Location) to narrow results.' },
+        { element: '#category-filter', title: 'Quick Filters', content: 'Use the filters (Category, Condition, Project, Location) to narrow results.' },
         { element: '#category-list', title: 'Categories Sidebar', content: 'Browse by category with counts. This stays fixed for easy access.' },
-        { element: '#products-grid', title: 'Materials', content: 'Tap a card to see details, photos, and add to cart.' },
-        { element: '#cart-button, .cart-button', title: 'Cart', content: 'Review your selected items and place order requests from the cart.' }
+        { element: firstCard, title: 'Material Card', content: 'This shows one item. Tap to view details, photos, and add to cart.' },
+        { element: '#cart-button, .cart-button', title: 'Cart', content: 'Review your selected items and place order requests from the cart.' },
+        { element: profileBtn, title: 'Your Profile', content: 'Open your profile to view account details, orders, and requests.' }
     ];
 
     GuidedTour.showWelcome({}, () => {
