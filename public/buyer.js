@@ -368,7 +368,9 @@ function initBuyerTour() {
         const l = document.createElement('link'); l.rel='stylesheet'; l.href='/guided-tour.css'; document.head.appendChild(l);
         return;
     }
-    if (localStorage.getItem('gs_tour_buyer_dismissed') === '1') return;
+    const userId = (currentUser && currentUser.id) || 'guest';
+    const dismissedKey = `gs_tour_buyer_dismissed_${userId}`;
+    if (localStorage.getItem(dismissedKey) === '1') return;
 
     const selectFirst = (sel)=>{ const n=document.querySelectorAll(sel); return n && n.length ? n[0] : null; };
     const firstCard = ()=> selectFirst('#products-grid .product-card, #products-grid .material-card');
@@ -383,9 +385,9 @@ function initBuyerTour() {
     ];
 
     GuidedTour.showWelcome({}, () => {
-        const tour = new GuidedTour(steps, { storageKey: 'gs_tour_buyer_dismissed' });
+        const tour = new GuidedTour(steps, { storageKey: dismissedKey });
         tour.start();
-    }, () => localStorage.setItem('gs_tour_buyer_dismissed','1'));
+    }, () => localStorage.setItem(dismissedKey,'1'));
 }
 
 // Help button that starts an appropriate tour for the current view
@@ -417,7 +419,8 @@ function addBuyerHelpButton() {
             { element: '#products-grid', title: 'Materials', content: 'Tap a card to see details, photos, and add to cart.' },
             { element: '#cart-button, .cart-button', title: 'Cart', content: 'Review your selected items and place order requests from the cart.' }
         ];
-        const tour = new GuidedTour(steps, { storageKey: 'gs_tour_buyer_manual' });
+        // Manual tour always runs regardless of dismissed flag
+        const tour = new GuidedTour(steps, { storageKey: `gs_tour_buyer_manual_${(currentUser&&currentUser.id)||'guest'}` });
         tour.start();
     };
     document.body.appendChild(btn);

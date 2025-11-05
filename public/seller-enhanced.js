@@ -6,7 +6,11 @@ function initSellerTour() {
         const l = document.createElement('link'); l.rel='stylesheet'; l.href='/guided-tour.css'; document.head.appendChild(l);
         return;
     }
-    if (localStorage.getItem('gs_tour_seller_dismissed') === '1') return;
+    const userJson = localStorage.getItem('currentUser');
+    let userId = 'guest';
+    try { if (userJson) userId = JSON.parse(userJson).id || 'guest'; } catch {}
+    const dismissedKey = `gs_tour_seller_dismissed_${userId}`;
+    if (localStorage.getItem(dismissedKey) === '1') return;
     const selectFirst = (sel)=>{ const n=document.querySelectorAll(sel); return n && n.length ? n[0] : null; };
     const firstInventoryCard = ()=> selectFirst('.inventory-grid .material-card, .inventory-grid .product-card, #materials-grid .material-card');
     const profileBtn = ()=> selectFirst('#profile-dropdown-button, .profile-dropdown-toggle, .nav .user-menu, .nav [data-profile]');
@@ -19,9 +23,9 @@ function initSellerTour() {
         { element: profileBtn, title: 'Your Profile', content: 'Open your profile to manage account details and see activity.' }
     ];
     GuidedTour.showWelcome({}, () => {
-        const tour = new GuidedTour(steps, { storageKey: 'gs_tour_seller_dismissed' });
+        const tour = new GuidedTour(steps, { storageKey: dismissedKey });
         tour.start();
-    }, () => localStorage.setItem('gs_tour_seller_dismissed','1'));
+    }, () => localStorage.setItem(dismissedKey,'1'));
 }
 
 function addSellerHelpButton() {
@@ -31,7 +35,30 @@ function addSellerHelpButton() {
     btn.className = 'gs-tour-help-btn';
     btn.title = 'Show guide';
     btn.innerHTML = '<i class="fas fa-question"></i>';
-    btn.onclick = initSellerTour;
+    btn.onclick = () => {
+        // Always run a manual tour regardless of dismissed flag
+        const userJson = localStorage.getItem('currentUser');
+        let userId = 'guest';
+        try { if (userJson) userId = JSON.parse(userJson).id || 'guest'; } catch {}
+        if (!window.GuidedTour) {
+            const s = document.createElement('script'); s.src='/guided-tour.js'; s.onload=()=>btn.click(); document.head.appendChild(s);
+            const l = document.createElement('link'); l.rel='stylesheet'; l.href='/guided-tour.css'; document.head.appendChild(l);
+            return;
+        }
+        const selectFirst = (sel)=>{ const n=document.querySelectorAll(sel); return n && n.length ? n[0] : null; };
+        const firstInventoryCard = ()=> selectFirst('.inventory-grid .material-card, .inventory-grid .product-card, #materials-grid .material-card');
+        const profileBtn = ()=> selectFirst('#profile-dropdown-button, .profile-dropdown-toggle, .nav .user-menu, .nav [data-profile]');
+        const steps = [
+            { element: '.tab-buttons, .tabs', title: 'Tabs', content: 'Navigate to different sections of your dashboard.' },
+            { element: firstInventoryCard, title: 'Inventory Card', content: 'This is one of your materials. Click to view, edit, or manage photos.' },
+            { element: '#bulk-upload, .upload-section', title: 'Bulk Upload', content: 'Upload a ZIP/Excel to add multiple materials at once.' },
+            { element: '#order-requests-tab, #order-requests', title: 'Order Requests', content: 'View and respond to buyer requests here.' },
+            { element: '#orders-tab, #orders', title: 'Orders', content: 'Track your approved orders and their status.' },
+            { element: profileBtn, title: 'Your Profile', content: 'Open your profile to manage account details and see activity.' }
+        ];
+        const tour = new GuidedTour(steps, { storageKey: `gs_tour_seller_manual_${userId}` });
+        tour.start();
+    };
     document.body.appendChild(btn);
 }
 
