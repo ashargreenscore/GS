@@ -2160,6 +2160,15 @@ class Database {
       if (updateData.photo !== undefined) dbUpdateData.photo = updateData.photo;
       if (updateData.dimensions !== undefined) dbUpdateData.dimensions = updateData.dimensions;
       if (updateData.weight !== undefined) dbUpdateData.weight = updateData.weight;
+      if (updateData.location_details !== undefined) dbUpdateData.location_details = updateData.location_details;
+      if (updateData.latitude !== undefined) {
+        dbUpdateData.latitude = updateData.latitude;
+        // Set geocoded_at if coordinates are provided
+        if (updateData.latitude && updateData.longitude) {
+          dbUpdateData.geocoded_at = new Date().toISOString();
+        }
+      }
+      if (updateData.longitude !== undefined) dbUpdateData.longitude = updateData.longitude;
       
       // Calculate inventory_value if quantity or price changed
       if (dbUpdateData.quantity !== undefined || dbUpdateData.price_today !== undefined) {

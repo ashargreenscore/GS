@@ -749,6 +749,29 @@
                         </div>
                         
                         <div class="form-group full-width">
+                            <label for="edit-location">Location Address</label>
+                            <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                                <input type="text" id="edit-location" placeholder="Enter address (e.g., Mumbai, Maharashtra, India)" style="flex: 1;">
+                                <button type="button" id="edit-geocode-btn" class="btn btn-secondary" onclick="geocodeAddressForEdit()" style="white-space: nowrap;">
+                                    <i class="fas fa-map-marker-alt"></i> Geocode
+                                </button>
+                            </div>
+                            <small style="color: #6b7280; margin-top: 0.25rem; display: block;">Enter address and click Geocode to automatically get coordinates</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-latitude">Latitude</label>
+                            <input type="number" id="edit-latitude" step="any" placeholder="e.g., 19.0760">
+                            <small style="color: #6b7280; margin-top: 0.25rem; display: block;">Optional: Enter manually or use Geocode</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-longitude">Longitude</label>
+                            <input type="number" id="edit-longitude" step="any" placeholder="e.g., 72.8777">
+                            <small style="color: #6b7280; margin-top: 0.25rem; display: block;">Optional: Enter manually or use Geocode</small>
+                        </div>
+                        
+                        <div class="form-group full-width">
                             <label for="edit-photos">Photos (Add multiple for slideshow)</label>
                             
                             <!-- Photo Upload Button -->

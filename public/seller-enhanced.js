@@ -945,6 +945,14 @@ async function editMaterial(materialId) {
         document.getElementById('edit-price-today').value = material.priceToday || material.price_today || 0;
         document.getElementById('edit-specs').value = material.specs || '';
         
+        // Populate location fields
+        const editLocation = document.getElementById('edit-location');
+        const editLatitude = document.getElementById('edit-latitude');
+        const editLongitude = document.getElementById('edit-longitude');
+        if (editLocation) editLocation.value = material.location_details || material.project_location || '';
+        if (editLatitude) editLatitude.value = material.latitude || '';
+        if (editLongitude) editLongitude.value = material.longitude || '';
+        
         // Handle photos - could be single string, JSON array, or base64
         editUploadedPhotos = []; // Clear previous uploads
         let existingPhotos = [];
@@ -1039,7 +1047,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 mrp: parseFloat(document.getElementById('edit-mrp').value) || 0,
                 priceToday: parseFloat(document.getElementById('edit-price-today').value),
                 specs: document.getElementById('edit-specs').value,
-                photo: photoValue
+                photo: photoValue,
+                location_details: document.getElementById('edit-location').value || null,
+                latitude: document.getElementById('edit-latitude').value ? parseFloat(document.getElementById('edit-latitude').value) : null,
+                longitude: document.getElementById('edit-longitude').value ? parseFloat(document.getElementById('edit-longitude').value) : null
             };
             
             try {
@@ -4549,6 +4560,54 @@ async function geocodeAddress() {
 window.debugElements = debugElements;
 window.uploadCSV = uploadCSV;
 window.geocodeAddress = geocodeAddress;
+
+// Geocode address for edit form
+async function geocodeAddressForEdit() {
+    const addressInput = document.getElementById('edit-location');
+    const latitudeInput = document.getElementById('edit-latitude');
+    const longitudeInput = document.getElementById('edit-longitude');
+    const geocodeBtn = document.getElementById('edit-geocode-btn');
+    
+    if (!addressInput || !addressInput.value.trim()) {
+        showNotification('Please enter an address first', 'error');
+        return;
+    }
+    
+    const address = addressInput.value.trim();
+    
+    // Disable button and show loading
+    geocodeBtn.disabled = true;
+    geocodeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Geocoding...';
+    
+    try {
+        const response = await fetch('/api/geocode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ address })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.lat && result.lng) {
+            latitudeInput.value = result.lat.toFixed(6);
+            longitudeInput.value = result.lng.toFixed(6);
+            showNotification(`Coordinates found: ${result.lat.toFixed(6)}, ${result.lng.toFixed(6)}`, 'success');
+        } else {
+            showNotification('Could not find coordinates for this address. Please enter coordinates manually.', 'warning');
+        }
+    } catch (error) {
+        console.error('Geocoding error:', error);
+        showNotification('Error geocoding address. Please try again or enter coordinates manually.', 'error');
+    } finally {
+        // Re-enable button
+        geocodeBtn.disabled = false;
+        geocodeBtn.innerHTML = '<i class="fas fa-map-marker-alt"></i> Geocode';
+    }
+}
+
+window.geocodeAddressForEdit = geocodeAddressForEdit;
 window.showCreateProjectModal = showCreateProjectModal;
 window.closeProjectModal = closeProjectModal;
 window.signOut = signOut;

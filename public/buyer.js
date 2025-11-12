@@ -2533,7 +2533,7 @@ function initMap() {
     map.addLayer(markerClusterGroup);
 }
 
-function displayMaterialsOnMap(materialsToShow) {
+async function displayMaterialsOnMap(materialsToShow) {
     if (!map || !markerClusterGroup) {
         if (isMapView) initMap();
         if (!map || !markerClusterGroup) return;
@@ -2543,7 +2543,64 @@ function displayMaterialsOnMap(materialsToShow) {
     markerClusterGroup.clearLayers();
     
     // Filter materials with coordinates
-    const materialsWithCoords = materialsToShow.filter(m => m.latitude && m.longitude);
+    let materialsWithCoords = materialsToShow.filter(m => m.latitude && m.longitude);
+    
+    // Auto-geocode materials with addresses but no coordinates
+    const materialsToGeocode = materialsToShow.filter(m => 
+        !m.latitude && !m.longitude && 
+        (m.project_location || m.location_details)
+    );
+    
+    if (materialsToGeocode.length > 0) {
+        // Show loading message
+        if (map) {
+            const loadingPopup = L.popup()
+                .setLatLng([20.5937, 78.9629])
+                .setContent('<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px;"></i><p>Geocoding addresses...</p></div>')
+                .openOn(map);
+        }
+        
+        // Geocode addresses (with rate limiting)
+        for (let i = 0; i < materialsToGeocode.length && i < 10; i++) { // Limit to 10 at a time
+            const material = materialsToGeocode[i];
+            const address = material.project_location || material.location_details;
+            
+            try {
+                const response = await fetch('/api/geocode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address })
+                });
+                
+                const result = await response.json();
+                if (result.success && result.lat && result.lng) {
+                    // Update material with coordinates
+                    material.latitude = result.lat;
+                    material.longitude = result.lng;
+                    materialsWithCoords.push(material);
+                    
+                    // Update in materials array too
+                    const materialIndex = materials.findIndex(m => m.id === material.id);
+                    if (materialIndex !== -1) {
+                        materials[materialIndex].latitude = result.lat;
+                        materials[materialIndex].longitude = result.lng;
+                    }
+                    
+                    // Save coordinates to database (async, don't wait)
+                    // Note: This requires seller authentication, so we'll skip it for now
+                    // Coordinates will be saved when seller edits the material
+                    // For now, coordinates are cached in memory for the session
+                }
+                
+                // Rate limit: wait 1 second between requests
+                if (i < materialsToGeocode.length - 1 && i < 9) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            } catch (error) {
+                console.error('Geocoding error for material:', material.id, error);
+            }
+        }
+    }
     
     if (materialsWithCoords.length === 0) {
         // Show message using a popup or overlay on the map
@@ -2551,7 +2608,13 @@ function displayMaterialsOnMap(materialsToShow) {
             map.setView([20.5937, 78.9629], 5);
             const noDataPopup = L.popup()
                 .setLatLng([20.5937, 78.9629])
-                .setContent('<div style="text-align: center; padding: 20px; color: #6b7280;"><i class="fas fa-map-marker-alt" style="font-size: 48px; opacity: 0.3; margin-bottom: 10px;"></i><p>No materials with location data found</p></div>')
+                .setContent(`
+                    <div style="text-align: center; padding: 20px; color: #6b7280; max-width: 300px;">
+                        <i class="fas fa-map-marker-alt" style="font-size: 48px; opacity: 0.3; margin-bottom: 10px;"></i>
+                        <p style="margin-bottom: 10px;">No materials with location data found</p>
+                        <p style="font-size: 12px; color: #9ca3af;">Sellers can add location coordinates when creating materials</p>
+                    </div>
+                `)
                 .openOn(map);
         }
         return;
