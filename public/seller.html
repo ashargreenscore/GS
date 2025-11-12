@@ -354,6 +354,29 @@
                                 </div>
                                 
                                 <div class="form-group full-width">
+                                    <label for="item-location">Location Address</label>
+                                    <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                                        <input type="text" id="item-location" placeholder="Enter address (e.g., Mumbai, Maharashtra, India)" style="flex: 1;">
+                                        <button type="button" id="geocode-btn" class="btn btn-secondary" onclick="geocodeAddress()" style="white-space: nowrap;">
+                                            <i class="fas fa-map-marker-alt"></i> Geocode
+                                        </button>
+                                    </div>
+                                    <small style="color: #6b7280; margin-top: 0.25rem; display: block;">Enter address and click Geocode to automatically get coordinates</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="item-latitude">Latitude</label>
+                                    <input type="number" id="item-latitude" step="any" placeholder="e.g., 19.0760">
+                                    <small style="color: #6b7280; margin-top: 0.25rem; display: block;">Optional: Enter manually or use Geocode</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="item-longitude">Longitude</label>
+                                    <input type="number" id="item-longitude" step="any" placeholder="e.g., 72.8777">
+                                    <small style="color: #6b7280; margin-top: 0.25rem; display: block;">Optional: Enter manually or use Geocode</small>
+                                </div>
+                                
+                                <div class="form-group full-width">
                                     <label for="item-photos">Photos (Add multiple for slideshow)</label>
                                     
                                     <!-- Single Photo Upload Button -->

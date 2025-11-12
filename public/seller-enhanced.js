@@ -2157,6 +2157,9 @@ async function addManualItem(e) {
         return;
     }
     
+    const latitude = document.getElementById('item-latitude').value ? parseFloat(document.getElementById('item-latitude').value) : null;
+    const longitude = document.getElementById('item-longitude').value ? parseFloat(document.getElementById('item-longitude').value) : null;
+    
     const material = {
         sellerId: currentUser.id,
         projectId: selectedProject,
@@ -2176,7 +2179,10 @@ async function addManualItem(e) {
         pricePurchased: 0,
         inventoryValue: 0,
         inventoryType: 'manual',
-        listingType: 'resale'
+        listingType: 'resale',
+        latitude: latitude,
+        longitude: longitude,
+        location_details: document.getElementById('item-location').value || null
     };
     
     try {
@@ -4493,9 +4499,56 @@ function setupProfileAccountForm() {
     });
 }
 
+// Geocode address function
+async function geocodeAddress() {
+    const addressInput = document.getElementById('item-location');
+    const latitudeInput = document.getElementById('item-latitude');
+    const longitudeInput = document.getElementById('item-longitude');
+    const geocodeBtn = document.getElementById('geocode-btn');
+    
+    if (!addressInput || !addressInput.value.trim()) {
+        showNotification('Please enter an address first', 'error');
+        return;
+    }
+    
+    const address = addressInput.value.trim();
+    
+    // Disable button and show loading
+    geocodeBtn.disabled = true;
+    geocodeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Geocoding...';
+    
+    try {
+        const response = await fetch('/api/geocode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ address })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.lat && result.lng) {
+            latitudeInput.value = result.lat.toFixed(6);
+            longitudeInput.value = result.lng.toFixed(6);
+            showNotification(`Coordinates found: ${result.lat.toFixed(6)}, ${result.lng.toFixed(6)}`, 'success');
+        } else {
+            showNotification('Could not find coordinates for this address. Please enter coordinates manually.', 'warning');
+        }
+    } catch (error) {
+        console.error('Geocoding error:', error);
+        showNotification('Error geocoding address. Please try again or enter coordinates manually.', 'error');
+    } finally {
+        // Re-enable button
+        geocodeBtn.disabled = false;
+        geocodeBtn.innerHTML = '<i class="fas fa-map-marker-alt"></i> Geocode';
+    }
+}
+
 // Make functions available globally
 window.debugElements = debugElements;
 window.uploadCSV = uploadCSV;
+window.geocodeAddress = geocodeAddress;
 window.showCreateProjectModal = showCreateProjectModal;
 window.closeProjectModal = closeProjectModal;
 window.signOut = signOut;

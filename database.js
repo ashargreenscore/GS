@@ -759,12 +759,16 @@ class Database {
     const pool = await this.ensurePool();
     try {
       const listingId = this.generateListingId();
+      const latitude = materialData.latitude || null;
+      const longitude = materialData.longitude || null;
+      const geocodedAt = (latitude && longitude) ? new Date().toISOString() : null;
+      
       await pool.query(`
         INSERT INTO materials (
           id, listing_id, seller_id, project_id, material, brand, category, condition,
           quantity, unit, price_today, mrp, price_purchased, inventory_value,
-          inventory_type, listing_type, specs, photo, specs_photo
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          inventory_type, listing_type, specs, photo, specs_photo, latitude, longitude, geocoded_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       `, [
         materialData.id, listingId, materialData.sellerId, materialData.projectId,
         materialData.material, materialData.brand || '', materialData.category || 'Other',
@@ -772,7 +776,8 @@ class Database {
         materialData.priceToday, materialData.mrp || 0, materialData.pricePurchased || 0,
         materialData.inventoryValue || 0, materialData.inventoryType || 'surplus',
         materialData.listingType || 'resale', materialData.specs || '',
-        materialData.photo || '', materialData.specsPhoto || ''
+        materialData.photo || '', materialData.specsPhoto || '',
+        latitude, longitude, geocodedAt
       ]);
       
       return {...materialData, listingId};
