@@ -2192,11 +2192,9 @@ function displayProfileOrders() {
                             <button onclick="showOrderTimeline('${order.id}')" style="padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.875rem; font-weight: 500; display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
                                 <i class="fas fa-history"></i> Timeline
                             </button>
-                            ${order.tracking_url ? `
-                            <button onclick="window.open('${order.tracking_url}', '_blank')" style="padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.875rem; font-weight: 500; display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
-                                <i class="fas fa-map-marker-alt"></i> Track
+                            <button onclick="showOrderTrackingMapById('${order.id}')" style="padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.875rem; font-weight: 500; display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                                <i class="fas fa-map-marker-alt"></i> Track Order
                             </button>
-                            ` : ''}
                         </div>
                     </div>
                 </div>
@@ -2712,3 +2710,244 @@ async function showOrderTimeline(orderId) {
 }
 
 window.showOrderTimeline = showOrderTimeline;
+
+// Order tracking map functionality
+async function showOrderTrackingMapById(orderId) {
+    try {
+        // Find order from profileOrders array
+        const order = profileOrders.find(o => o.id === orderId);
+        if (!order) {
+            showNotification('Order not found', 'error');
+            return;
+        }
+        await showOrderTrackingMap(order);
+    } catch (error) {
+        console.error('Error showing order tracking map:', error);
+        showNotification('Failed to load order tracking', 'error');
+    }
+}
+
+async function showOrderTrackingMap(order) {
+    try {
+        
+        // Create tracking map modal
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'flex';
+        modal.id = 'order-tracking-modal';
+        
+        const modalContent = `
+            <div class="modal-content" style="max-width: 900px; width: 95%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e5e7eb; flex-shrink: 0;">
+                    <h2 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #1f2937;">
+                        <i class="fas fa-shipping-fast" style="color: #10b981; margin-right: 0.5rem;"></i>
+                        Order Tracking
+                    </h2>
+                    <button onclick="document.getElementById('order-tracking-modal').remove()" style="background: none; border: none; font-size: 1.5rem; color: #6b7280; cursor: pointer; padding: 0.25rem 0.5rem;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 1rem; overflow: hidden;">
+                    <!-- Order Info -->
+                    <div style="background: #f9fafb; padding: 1rem; border-radius: 8px; flex-shrink: 0;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Order ID</div>
+                                <div style="font-size: 0.875rem; font-weight: 600; font-family: monospace;">${order.id.substring(0, 12)}...</div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Status</div>
+                                <div><span class="status-badge status-${order.status}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">${order.status.toUpperCase()}</span></div>
+                            </div>
+                            <div>
+                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Tracking Number</div>
+                                <div style="font-size: 0.875rem; font-weight: 500;">${order.tracking_number || 'Not provided'}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Map Container -->
+                    <div id="order-tracking-map" style="flex: 1; min-height: 400px; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;"></div>
+                    
+                    <!-- Addresses and Actions -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; flex-shrink: 0;">
+                        <div style="background: #ecfdf5; padding: 1rem; border-radius: 8px; border-left: 3px solid #10b981;">
+                            <div style="color: #065f46; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-store"></i> Origin (Seller)
+                            </div>
+                            <div style="color: #047857; font-size: 0.875rem; line-height: 1.5;">
+                                ${order.seller_name || 'Seller'}${order.seller_company ? ` - ${order.seller_company}` : ''}
+                            </div>
+                        </div>
+                        <div style="background: #dbeafe; padding: 1rem; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                            <div style="color: #1e40af; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-map-marker-alt"></i> Destination
+                            </div>
+                            <div style="color: #1e3a8a; font-size: 0.875rem; line-height: 1.5;">
+                                ${order.shipping_address || 'Address not provided'}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${order.tracking_url ? `
+                    <div style="flex-shrink: 0;">
+                        <a href="${order.tracking_url}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; background: #3b82f6; color: white; border-radius: 8px; text-decoration: none; font-weight: 500;">
+                            <i class="fas fa-external-link-alt"></i> Open Full Tracking Page
+                        </a>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        
+        modal.innerHTML = modalContent;
+        document.body.appendChild(modal);
+        
+        // Initialize map after modal is added to DOM
+        setTimeout(() => {
+            initOrderTrackingMap(order);
+        }, 100);
+        
+        // Close on backdrop click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    } catch (error) {
+        console.error('Error showing order tracking map:', error);
+        showNotification('Failed to load order tracking', 'error');
+    }
+}
+
+function initOrderTrackingMap(order) {
+    const mapContainer = document.getElementById('order-tracking-map');
+    if (!mapContainer) return;
+    
+    // Initialize map centered on India
+    const trackingMap = L.map('order-tracking-map').setView([20.5937, 78.9629], 5);
+    
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(trackingMap);
+    
+    // Geocode addresses and show markers
+    const geocodePromises = [];
+    
+    // Geocode destination (shipping address)
+    if (order.shipping_address) {
+        geocodePromises.push(
+            fetch('/api/geocode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ address: order.shipping_address })
+            }).then(res => res.json())
+            .then(result => {
+                if (result.success && result.lat && result.lng) {
+                    const destMarker = L.marker([result.lat, result.lng], {
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        })
+                    }).addTo(trackingMap);
+                    
+                    destMarker.bindPopup(`
+                        <div style="min-width: 200px;">
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem; font-weight: 600;">Destination</h4>
+                            <p style="margin: 0; font-size: 0.875rem; color: #4b5563;">${order.shipping_address}</p>
+                        </div>
+                    `);
+                    
+                    return { type: 'destination', lat: result.lat, lng: result.lng };
+                }
+                return null;
+            }).catch(err => {
+                console.error('Geocoding error for destination:', err);
+                return null;
+            })
+        );
+    }
+    
+    // Try to get seller location (from project or material)
+    // For now, we'll use a default location or try to geocode seller company name
+    if (order.seller_company || order.seller_name) {
+        const sellerLocation = order.seller_company || order.seller_name;
+        geocodePromises.push(
+            fetch('/api/geocode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ address: sellerLocation })
+            }).then(res => res.json())
+            .then(result => {
+                if (result.success && result.lat && result.lng) {
+                    const originMarker = L.marker([result.lat, result.lng], {
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        })
+                    }).addTo(trackingMap);
+                    
+                    originMarker.bindPopup(`
+                        <div style="min-width: 200px;">
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem; font-weight: 600;">Origin (Seller)</h4>
+                            <p style="margin: 0; font-size: 0.875rem; color: #4b5563;">${sellerLocation}</p>
+                        </div>
+                    `);
+                    
+                    return { type: 'origin', lat: result.lat, lng: result.lng };
+                }
+                return null;
+            }).catch(err => {
+                console.error('Geocoding error for origin:', err);
+                return null;
+            })
+        );
+    }
+    
+    // Wait for all geocoding to complete, then fit bounds
+    Promise.all(geocodePromises).then(results => {
+        const validResults = results.filter(r => r !== null);
+        
+        if (validResults.length > 0) {
+            const bounds = validResults.map(r => [r.lat, r.lng]);
+            trackingMap.fitBounds(bounds, { padding: [50, 50] });
+            
+            // Draw a line between origin and destination if both exist
+            if (validResults.length === 2) {
+                const origin = validResults.find(r => r.type === 'origin');
+                const destination = validResults.find(r => r.type === 'destination');
+                
+                if (origin && destination) {
+                    const routeLine = L.polyline(
+                        [[origin.lat, origin.lng], [destination.lat, destination.lng]],
+                        {
+                            color: '#3b82f6',
+                            weight: 3,
+                            opacity: 0.7,
+                            dashArray: '10, 10'
+                        }
+                    ).addTo(trackingMap);
+                }
+            }
+        } else {
+            // Show message if no locations found
+            L.popup()
+                .setLatLng([20.5937, 78.9629])
+                .setContent('<div style="text-align: center; padding: 20px;"><p>Unable to geocode addresses. Please check tracking URL for details.</p></div>')
+                .openOn(trackingMap);
+        }
+    });
+}
+
+window.showOrderTrackingMap = showOrderTrackingMap;
