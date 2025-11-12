@@ -42,6 +42,215 @@ app.use('/api/upload-file', (req, res, next) => {
     next();
 });
 
+// --- Geocoding service with rate limiting ---
+let geocodeQueue = [];
+let isGeocoding = false;
+const GEOCODE_RATE_LIMIT = 1000; // 1 second between requests (Nominatim requirement)
+
+async function geocodeAddress(address) {
+  if (!address || !address.trim()) {
+    return null;
+  }
+
+  // Check cache in database first
+  if (db) {
+    try {
+      const pool = await db.ensurePool();
+      const cached = await pool.query(
+        'SELECT latitude, longitude, display_name FROM geocode_cache WHERE address = $1',
+        [address.trim()]
+      );
+      if (cached.rows.length > 0) {
+        return {
+          lat: parseFloat(cached.rows[0].latitude),
+          lng: parseFloat(cached.rows[0].longitude),
+          display_name: cached.rows[0].display_name
+        };
+      }
+    } catch (e) {
+      console.error('Geocode cache check error:', e);
+    }
+  }
+
+  // Use Nominatim (OpenStreetMap) - free, no API key needed
+  try {
+    const encodedAddress = encodeURIComponent(address.trim());
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'GreenScore-Marketplace/1.0' // Required by Nominatim
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Geocoding failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      const result = {
+        lat: parseFloat(data[0].lat),
+        lng: parseFloat(data[0].lon),
+        display_name: data[0].display_name
+      };
+
+      // Cache result in database
+      if (db) {
+        try {
+          const pool = await db.ensurePool();
+          await pool.query(
+            `INSERT INTO geocode_cache (address, latitude, longitude, display_name, created_at)
+             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+             ON CONFLICT (address) DO UPDATE SET
+             latitude = EXCLUDED.latitude,
+             longitude = EXCLUDED.longitude,
+             display_name = EXCLUDED.display_name,
+             created_at = CURRENT_TIMESTAMP`,
+            [address.trim(), result.lat, result.lng, result.display_name]
+          );
+        } catch (e) {
+          console.error('Geocode cache save error:', e);
+        }
+      }
+
+      return result;
+    }
+    return null;
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    return null;
+  }
+}
+
+async function processGeocodeQueue() {
+  if (isGeocoding || geocodeQueue.length === 0) return;
+  
+  isGeocoding = true;
+  while (geocodeQueue.length > 0) {
+    const { address, resolve, reject } = geocodeQueue.shift();
+    try {
+      const result = await geocodeAddress(address);
+      resolve(result);
+    } catch (error) {
+      reject(error);
+    }
+    // Rate limit: wait 1 second between requests
+    if (geocodeQueue.length > 0) {
+      await new Promise(resolve => setTimeout(resolve, GEOCODE_RATE_LIMIT));
+    }
+  }
+  isGeocoding = false;
+}
+
+app.post('/api/geocode', async (req, res) => {
+  try {
+    const { address } = req.body || {};
+    if (!address || !address.trim()) {
+      return res.status(400).json({ success: false, error: 'Address is required' });
+    }
+
+    // Queue the request to respect rate limits
+    const result = await new Promise((resolve, reject) => {
+      geocodeQueue.push({ address, resolve, reject });
+      processGeocodeQueue();
+    });
+
+    if (result) {
+      res.json({ success: true, ...result });
+    } else {
+      res.status(404).json({ success: false, error: 'Address not found' });
+    }
+  } catch (error) {
+    console.error('Geocoding endpoint error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// --- AI Assistant endpoint (optional LLM-backed) ---
+app.post('/api/assistant', async (req, res) => {
+  try {
+    const { message, page, userId } = req.body || {};
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.GPT_API_KEY || process.env.AI_API_KEY;
+
+    function regexParse(text) {
+      const t = (text || '').toLowerCase();
+      const out = { intent: 'answer', params: {}, reply: '' };
+      if (/switch to (buyer|marketplace)/.test(t)) { out.intent='navigate'; out.params={ path:'/buyer.html' }; out.reply='Opening Buyer Marketplace...'; return out; }
+      if (/switch to seller|seller dashboard|open seller/.test(t)) { out.intent='navigate'; out.params={ path:'/seller.html' }; out.reply='Opening Seller Dashboard...'; return out; }
+      const addCart = /(add|put).*?(?:\"([^\"]+)\"|'([^']+)'|([a-z0-9\s]+))?.*?(\d{1,3})?\s*(?:pcs|pieces|units|nos|no|items)?\s*(?:to )?cart/.exec(t) || /(add|put).*cart/.exec(t);
+      if (/(add|put).*cart/.test(t)) {
+        out.intent='add_to_cart';
+        const name = addCart ? (addCart[2]||addCart[3]||addCart[4]||'') : '';
+        const qty = addCart && addCart[5] ? parseInt(addCart[5],10) : 1;
+        out.params={ name: name.trim(), quantity: qty };
+        out.reply=`Adding ${qty} ${name||'item'} to cart...`;
+        return out;
+      }
+      if (/open cart|show cart/.test(t)) { out.intent='open_cart'; out.reply='Opening cart...'; return out; }
+      if (/order requests?/.test(t)) { out.intent='click'; out.params={ selector:'#order-requests-tab, [data-tab="order-requests"]' }; out.reply='Opening Order Requests...'; return out; }
+      if (/orders?/.test(t)) { out.intent='click'; out.params={ selector:'#orders-tab, [data-tab="orders"]' }; out.reply='Opening Orders...'; return out; }
+      if (/bulk upload|zip|excel/.test(t)) { out.intent='click'; out.params={ selector:'#bulk-upload, .upload-section, [data-bulk-upload]' }; out.reply='Opening Bulk Upload...'; return out; }
+      if (/add (single )?(item|material)/.test(t)) { out.intent='clickText'; out.params={ root:'button, a', texts:['add item','add single','add material'] }; out.reply='Opening Add Single Item...'; return out; }
+      if (/inventory|my inventory/.test(t)) { out.intent='clickText'; out.params={ root:'.tab-btn, .tabs button, .nav-tabs button', texts:['inventory','my inventory'] }; out.reply='Opening My Inventory...'; return out; }
+      out.reply='I can help with Inventory, Add Single Item, Bulk Upload, Order Requests, Orders, Profile, Filters, Images, and Cart.';
+      return out;
+    }
+
+    if (!OPENAI_API_KEY) {
+      return res.json({ success: true, ...regexParse(message) });
+    }
+
+    const system = `You are an assistant for a construction materials marketplace.
+Return ONLY compact JSON with fields: intent (navigate, add_to_cart, open_cart, click, clickText, focus, answer), params (object), reply.`;
+    const prompt = `Page: ${page||'unknown'} | User: ${userId||'anon'}\nMessage: ${message}\nReturn JSON only.`;
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{role:'system', content: system}, {role:'user', content: prompt}], temperature: 0 })
+    });
+    const data = await resp.json();
+    const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    try {
+      const parsed = JSON.parse(content);
+      return res.json({ success:true, ...parsed });
+    } catch (e) {
+      return res.json({ success: true, ...regexParse(message), note:'LLM parse failed, used fallback' });
+    }
+  } catch (error) {
+    console.error('Assistant endpoint error:', error);
+    res.status(200).json({ success:true, intent:'answer', params:{}, reply:'Sorry, I could not process that. Please try again.' });
+  }
+});
+
+// --- Orders: status update & history ---
+app.post('/api/orders/:orderId/status', async (req, res) => {
+  try {
+    if (!db) return res.status(503).json({ success:false, error:'Database not initialized' });
+    const { orderId } = req.params;
+    const { status, tracking_number, tracking_url, note, changed_by } = req.body || {};
+    if (!status) return res.status(400).json({ success:false, error:'Missing status' });
+    await db.updateOrderStatus(orderId, status, { tracking_number, tracking_url, note, changed_by });
+    res.json({ success:true });
+  } catch (e) {
+    console.error('Order status update error:', e);
+    res.status(500).json({ success:false, error: e.message });
+  }
+});
+
+app.get('/api/orders/:orderId/history', async (req, res) => {
+  try {
+    if (!db) return res.status(503).json({ success:false, error:'Database not initialized' });
+    const { orderId } = req.params;
+    const history = await db.getOrderHistory(orderId);
+    res.json({ success:true, history });
+  } catch (e) {
+    console.error('Order history fetch error:', e);
+    res.status(500).json({ success:false, error: e.message });
+  }
+});
+
 // Enhanced multer configuration for multiple file types
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -402,6 +611,35 @@ app.get('/api/materials', async (req, res) => {
   } catch (error) {
     console.error('Get materials error:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get materials with coordinates for map view
+app.get('/api/materials/coordinates', async (req, res) => {
+  try {
+    if (!db) return res.status(503).json({ success: false, error: 'Database not initialized' });
+    const materials = await db.getAllMaterials();
+    // Filter materials with coordinates and return minimal data for map markers
+    const materialsWithCoords = materials
+      .filter(m => m.latitude && m.longitude)
+      .map(m => ({
+        id: m.id,
+        material: m.material,
+        brand: m.brand,
+        category: m.category,
+        price_today: m.price_today,
+        quantity: m.quantity,
+        unit: m.unit,
+        photo: m.photo,
+        latitude: parseFloat(m.latitude),
+        longitude: parseFloat(m.longitude),
+        project_location: m.project_location,
+        location_details: m.location_details
+      }));
+    res.json({ success: true, materials: materialsWithCoords });
+  } catch (error) {
+    console.error('Error fetching materials coordinates:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

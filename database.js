@@ -34,6 +34,40 @@ class Database {
     this.emailService = new EmailService();
   }
 
+  // Order status & history
+  async updateOrderStatus(orderId, status, options = {}) {
+    const pool = await this.ensurePool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const fields = ['status = $1', 'updated_at = CURRENT_TIMESTAMP'];
+      const values = [status];
+      let idx = values.length + 1;
+      if (options.tracking_number) { fields.push(`tracking_number = $${idx++}`); values.push(options.tracking_number); }
+      if (options.tracking_url) { fields.push(`tracking_url = $${idx++}`); values.push(options.tracking_url); }
+      values.push(orderId);
+      await client.query(`UPDATE orders SET ${fields.join(', ')} WHERE id = $${values.length}`, values);
+
+      // History
+      const { v4: uuidv4 } = require('uuid');
+      await client.query(
+        `INSERT INTO order_history (id, order_id, status, note, changed_by) VALUES ($1, $2, $3, $4, $5)`,
+        [uuidv4(), orderId, status, options.note || '', options.changed_by || 'system']
+      );
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally { client.release(); }
+  }
+
+  async getOrderHistory(orderId) {
+    const pool = await this.ensurePool();
+    const result = await pool.query('SELECT * FROM order_history WHERE order_id = $1 ORDER BY created_at ASC', [orderId]);
+    return result.rows;
+  }
+
   // Ensure pool is initialized before use
   async ensurePool() {
     if (this.pool) {
@@ -357,10 +391,77 @@ class Database {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           shipped_at TIMESTAMP,
           delivered_at TIMESTAMP,
+        tracking_url TEXT,
         FOREIGN KEY (order_request_id) REFERENCES order_requests (id),
         FOREIGN KEY (material_id) REFERENCES materials (id),
         FOREIGN KEY (buyer_id) REFERENCES users (id),
         FOREIGN KEY (seller_id) REFERENCES users (id)
+      )
+    `);
+
+    // Ensure tracking_url column exists (for older databases)
+    try {
+      await this.pool.query('ALTER TABLE orders ADD COLUMN tracking_url TEXT');
+    } catch (e) { /* ignore if exists */ }
+
+    // Ensure latitude/longitude columns exist for materials (for older databases)
+    try {
+      await this.pool.query('ALTER TABLE materials ADD COLUMN latitude NUMERIC');
+    } catch (e) { /* ignore if exists */ }
+    try {
+      await this.pool.query('ALTER TABLE materials ADD COLUMN longitude NUMERIC');
+    } catch (e) { /* ignore if exists */ }
+    try {
+      await this.pool.query('ALTER TABLE materials ADD COLUMN geocoded_at TIMESTAMP');
+    } catch (e) { /* ignore if exists */ }
+
+    // Ensure latitude/longitude columns exist for projects (for older databases)
+    try {
+      await this.pool.query('ALTER TABLE projects ADD COLUMN latitude NUMERIC');
+    } catch (e) { /* ignore if exists */ }
+    try {
+      await this.pool.query('ALTER TABLE projects ADD COLUMN longitude NUMERIC');
+    } catch (e) { /* ignore if exists */ }
+    try {
+      await this.pool.query('ALTER TABLE projects ADD COLUMN geocoded_at TIMESTAMP');
+    } catch (e) { /* ignore if exists */ }
+
+    // Geocode cache table for storing geocoding results
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS geocode_cache (
+        address TEXT PRIMARY KEY,
+        latitude NUMERIC NOT NULL,
+        longitude NUMERIC NOT NULL,
+        display_name TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Order history table
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS order_history (
+        id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        note TEXT,
+        changed_by TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (order_id) REFERENCES orders (id)
+      )
+    `);
+
+    // Transactions log table (non-payment ledger)
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS transactions (
+        id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL,
+        buyer_id TEXT NOT NULL,
+        seller_id TEXT NOT NULL,
+        subtotal NUMERIC NOT NULL,
+        platform_fee NUMERIC NOT NULL,
+        total NUMERIC NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (order_id) REFERENCES orders (id)
       )
     `);
 
@@ -686,7 +787,9 @@ class Database {
       let query = `
         SELECT m.*, 
                p.name as project_name,
-               p.location as project_location
+               p.location as project_location,
+               COALESCE(m.latitude, p.latitude) as latitude,
+               COALESCE(m.longitude, p.longitude) as longitude
         FROM materials m
         LEFT JOIN projects p ON m.project_id = p.id
         WHERE m.seller_id = $1
@@ -1381,6 +1484,18 @@ class Database {
                               // Update remaining quantity for next iteration
                               remainingQty -= fulfilledQty;
                               successCount++;
+
+                              // Create transaction log (non-payment ledger)
+                              try {
+                                const txId = uuidv4();
+                                await client.query(
+                                  `INSERT INTO transactions (id, order_id, buyer_id, seller_id, subtotal, platform_fee, total)
+                                   VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                                  [txId, orderId, request.buyer_id, request.seller_id, adjustedTotal, platformFee, adjustedTotal]
+                                );
+                              } catch (txErr) {
+                                console.error('Failed to create transaction log:', txErr);
+                              }
                               
                               results.push({
                                 requestId: request.id,
@@ -1718,7 +1833,9 @@ class Database {
           u.name as seller_name,
           u.company_name as seller_company,
           p.name as project_name,
-          p.location as project_location
+          p.location as project_location,
+          COALESCE(m.latitude, p.latitude) as latitude,
+          COALESCE(m.longitude, p.longitude) as longitude
         FROM materials m
         LEFT JOIN users u ON m.seller_id = u.id
         LEFT JOIN projects p ON m.project_id = p.id

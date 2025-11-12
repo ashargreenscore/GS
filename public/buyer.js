@@ -452,6 +452,11 @@ async function loadMaterials() {
         displayMaterials(); // This will show "No materials found" if empty
         updateCategoryCounts();
         
+        // Update map if in map view
+        if (isMapView && map) {
+            displayMaterialsOnMap(filteredMaterials);
+        }
+        
         updateMaterialsProgress(100, 'Complete!');
         
         // Always clear loading state after displayMaterials runs (handles both empty and non-empty)
@@ -1005,6 +1010,11 @@ function filterMaterials() {
     }
     
     displayMaterials();
+    
+    // Update map if in map view
+    if (isMapView && map) {
+        displayMaterialsOnMap(filteredMaterials);
+    }
 }
 
 // Setup event listeners
@@ -2178,6 +2188,16 @@ function displayProfileOrders() {
                             <div>Unit: ${formatIndianCurrency(order.unit_price || order.current_price || 0)}</div>
                             <div style="margin-top: 0.25rem;">Platform Fee: ${formatIndianCurrency(order.platform_fee || 0)}</div>
                         </div>
+                        <div style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                            <button onclick="showOrderTimeline('${order.id}')" style="padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.875rem; font-weight: 500; display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                                <i class="fas fa-history"></i> Timeline
+                            </button>
+                            ${order.tracking_url ? `
+                            <button onclick="window.open('${order.tracking_url}', '_blank')" style="padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.875rem; font-weight: 500; display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                                <i class="fas fa-map-marker-alt"></i> Track
+                            </button>
+                            ` : ''}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2458,6 +2478,148 @@ function setupProfileAccountForm() {
     });
 }
 
+// Map functionality
+let map = null;
+let mapMarkers = null;
+let markerClusterGroup = null;
+let isMapView = false;
+
+function toggleMapView() {
+    isMapView = !isMapView;
+    const productsGrid = document.getElementById('products-grid');
+    const mapContainer = document.getElementById('map-container');
+    const toggleBtn = document.getElementById('view-toggle-btn');
+    const toggleText = document.getElementById('view-toggle-text');
+    const toggleIcon = toggleBtn.querySelector('i');
+    
+    if (isMapView) {
+        productsGrid.style.display = 'none';
+        mapContainer.style.display = 'block';
+        toggleText.textContent = 'List View';
+        toggleIcon.className = 'fas fa-list';
+        localStorage.setItem('greenscore-view-mode', 'map');
+        
+        // Initialize map if not already done
+        if (!map) {
+            initMap();
+        }
+        // Update map markers with current filtered materials
+        displayMaterialsOnMap(filteredMaterials.length > 0 ? filteredMaterials : materials);
+    } else {
+        productsGrid.style.display = 'grid';
+        mapContainer.style.display = 'none';
+        toggleText.textContent = 'Map View';
+        toggleIcon.className = 'fas fa-map';
+        localStorage.setItem('greenscore-view-mode', 'list');
+    }
+}
+
+function initMap() {
+    const mapContainer = document.getElementById('map-container');
+    if (!mapContainer || map) return;
+    
+    // Initialize map centered on India
+    map = L.map('map-container').setView([20.5937, 78.9629], 5);
+    
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(map);
+    
+    // Initialize marker cluster group
+    markerClusterGroup = L.markerClusterGroup({
+        chunkedLoading: true,
+        maxClusterRadius: 50
+    });
+    map.addLayer(markerClusterGroup);
+}
+
+function displayMaterialsOnMap(materialsToShow) {
+    if (!map || !markerClusterGroup) {
+        if (isMapView) initMap();
+        if (!map || !markerClusterGroup) return;
+    }
+    
+    // Clear existing markers
+    markerClusterGroup.clearLayers();
+    
+    // Filter materials with coordinates
+    const materialsWithCoords = materialsToShow.filter(m => m.latitude && m.longitude);
+    
+    if (materialsWithCoords.length === 0) {
+        // Show message using a popup or overlay on the map
+        if (map) {
+            map.setView([20.5937, 78.9629], 5);
+            const noDataPopup = L.popup()
+                .setLatLng([20.5937, 78.9629])
+                .setContent('<div style="text-align: center; padding: 20px; color: #6b7280;"><i class="fas fa-map-marker-alt" style="font-size: 48px; opacity: 0.3; margin-bottom: 10px;"></i><p>No materials with location data found</p></div>')
+                .openOn(map);
+        }
+        return;
+    }
+    
+    // Create markers for each material
+    materialsWithCoords.forEach(material => {
+        const lat = parseFloat(material.latitude);
+        const lng = parseFloat(material.longitude);
+        
+        if (isNaN(lat) || isNaN(lng)) return;
+        
+        // Parse photo for popup
+        const photoUrl = parsePhoto(material.photo);
+        const photoHtml = photoUrl ? 
+            `<img src="${photoUrl}" alt="${material.material}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;">` :
+            '<div style="width: 100px; height: 100px; background: #e5e7eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;"><i class="fas fa-image" style="color: #9ca3af;"></i></div>';
+        
+        const popupContent = `
+            <div style="min-width: 200px; max-width: 300px;">
+                ${photoHtml}
+                <h4 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #111827;">${material.material || 'Material'}</h4>
+                ${material.brand ? `<p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px;"><strong>Brand:</strong> ${material.brand}</p>` : ''}
+                <p style="margin: 0 0 8px 0; color: #111827; font-size: 16px; font-weight: 700;">
+                    <span style="color: #10b981;">₹${formatIndianCurrency(material.price_today || 0, false)}</span>
+                    <span style="color: #6b7280; font-size: 12px; font-weight: 400;">/${material.unit || 'pcs'}</span>
+                </p>
+                <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 14px;">
+                    <strong>Quantity:</strong> ${material.quantity || 0} ${material.unit || 'pcs'}
+                </p>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="showProductModal('${material.id}')" style="flex: 1; padding: 8px 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">
+                        <i class="fas fa-info-circle"></i> Details
+                    </button>
+                    <button onclick="addToCart('${material.id}', 1)" style="flex: 1; padding: 8px 12px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">
+                        <i class="fas fa-cart-plus"></i> Add to Cart
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        const marker = L.marker([lat, lng]);
+        marker.bindPopup(popupContent);
+        markerClusterGroup.addLayer(marker);
+    });
+    
+    // Fit map to show all markers
+    if (materialsWithCoords.length > 0) {
+        const bounds = materialsWithCoords.map(m => [parseFloat(m.latitude), parseFloat(m.longitude)]);
+        map.fitBounds(bounds, { padding: [50, 50] });
+    }
+}
+
+// Restore view mode from localStorage
+document.addEventListener('DOMContentLoaded', function() {
+    const savedViewMode = localStorage.getItem('greenscore-view-mode');
+    if (savedViewMode === 'map') {
+        // Wait a bit for DOM to be ready
+        setTimeout(() => {
+            if (document.getElementById('view-toggle-btn')) {
+                toggleMapView();
+            }
+        }, 500);
+    }
+});
+
 window.checkout = checkout;
 window.closeModal = closeModal;
 window.closeCheckoutModal = closeCheckoutModal;
@@ -2472,3 +2634,81 @@ window.deleteMaterial = deleteMaterial;
 window.openProfilePage = openProfilePage;
 window.closeProfilePage = closeProfilePage;
 window.switchProfileTab = switchProfileTab;
+window.toggleMapView = toggleMapView;
+
+// Order timeline functionality
+async function showOrderTimeline(orderId) {
+    try {
+        const response = await fetch(`/api/orders/${orderId}/history`);
+        if (!response.ok) throw new Error('Failed to load order history');
+        
+        const result = await response.json();
+        const history = result.history || [];
+        
+        // Create timeline modal
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e5e7eb;">
+                    <h2 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #1f2937;">
+                        <i class="fas fa-history" style="color: #3b82f6; margin-right: 0.5rem;"></i>
+                        Order Timeline
+                    </h2>
+                    <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 1.5rem; color: #6b7280; cursor: pointer; padding: 0.25rem 0.5rem;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div style="position: relative; padding-left: 2rem;">
+                    ${history.length > 0 ? history.map((entry, index) => {
+                        const isLast = index === history.length - 1;
+                        const statusColors = {
+                            'approved': '#10b981',
+                            'shipped': '#3b82f6',
+                            'in_transit': '#f59e0b',
+                            'delivered': '#059669',
+                            'cancelled': '#ef4444'
+                        };
+                        const statusColor = statusColors[entry.status.toLowerCase()] || '#6b7280';
+                        
+                        return `
+                            <div style="position: relative; margin-bottom: ${isLast ? '0' : '2rem'};">
+                                <div style="position: absolute; left: -2.25rem; top: 0.25rem; width: 1rem; height: 1rem; border-radius: 50%; background: ${statusColor}; border: 3px solid white; box-shadow: 0 0 0 2px ${statusColor}; z-index: 2;"></div>
+                                ${!isLast ? `<div style="position: absolute; left: -1.75rem; top: 1.5rem; width: 2px; height: calc(100% + 0.5rem); background: #e5e7eb;"></div>` : ''}
+                                <div style="background: white; border-radius: 12px; padding: 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid ${statusColor};">
+                                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                                        <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700; color: #1f2937; text-transform: capitalize;">
+                                            ${entry.status.replace(/_/g, ' ')}
+                                        </h3>
+                                        <span style="font-size: 0.875rem; color: #6b7280;">
+                                            ${formatDateTime(entry.created_at)}
+                                        </span>
+                                    </div>
+                                    ${entry.note ? `<p style="margin: 0.5rem 0 0 0; color: #4b5563; font-size: 0.875rem; line-height: 1.5;">${entry.note}</p>` : ''}
+                                    ${entry.changed_by && entry.changed_by !== 'system' ? `<p style="margin: 0.5rem 0 0 0; color: #6b7280; font-size: 0.75rem;"><i class="fas fa-user"></i> ${entry.changed_by}</p>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('') : `
+                        <div style="text-align: center; padding: 2rem; color: #6b7280;">
+                            <i class="fas fa-history" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.3;"></i>
+                            <p>No timeline data available</p>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    } catch (error) {
+        console.error('Error loading order timeline:', error);
+        showNotification('Failed to load order timeline', 'error');
+    }
+}
+
+window.showOrderTimeline = showOrderTimeline;

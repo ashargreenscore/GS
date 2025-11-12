@@ -81,13 +81,38 @@
       const val = panel.querySelector('#gs-assist-input').value.trim(); if(val) send(val);
     };
     panel.querySelector('#gs-assist-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); const v=e.currentTarget.value.trim(); if(v) send(v); }});
-    function send(text){
+    async function send(text){
       const body = panel.querySelector('#gs-assist-body');
       body.insertAdjacentHTML('beforeend', `<div class="gs-msg user">${escapeHtml(text)}</div>`);
-      const answer = respond({}, text);
+      let answer = '';
+      // Try backend assistant if available
+      try {
+        const r = await fetch('/api/assistant', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: text, page: location.pathname, userId: (window.currentUser && window.currentUser.id) || null }) });
+        if (r.ok) {
+          const a = await r.json();
+          if (a && a.intent){
+            // Execute intent
+            performIntent(a.intent, a.params||{});
+            answer = a.reply || '';
+          }
+        }
+      } catch(e) {}
+      if (!answer){
+        answer = respond({}, text);
+      }
       body.insertAdjacentHTML('beforeend', `<div class="gs-msg bot">${escapeHtml(answer)}</div>`);
       body.scrollTop = body.scrollHeight;
       panel.querySelector('#gs-assist-input').value='';
+    }
+    function performIntent(intent, params){
+      try {
+        if (intent === 'navigate' && params.path) { if (location.pathname !== params.path) location.href = params.path; }
+        if (intent === 'click' && params.selector) { const el=document.querySelector(params.selector); if(el) el.click(); }
+        if (intent === 'clickText' && params.root && params.texts){ clickText(params.root, params.texts); }
+        if (intent === 'focus' && params.selector){ const el=document.querySelector(params.selector); if(el) el.focus(); }
+        if (intent === 'open_cart'){ clickSel('#cart-button, .cart-button, [data-cart]'); }
+        if (intent === 'add_to_cart') { addToCart(params.name || '', params.quantity || 1); }
+      } catch(e) {}
     }
     function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
   }

@@ -616,12 +616,12 @@ function displayOrderRequests() {
             <td>${formatDateTime(request.created_at)}</td>
             <td>
                 <div class="action-buttons" style="display: flex; gap: 5px; justify-content: center;">
-                    <button class="btn btn-sm btn-success" onclick="approveRequest('${request.id}')" title="Approve">
-                        <i class="fas fa-check"></i>
-                    </button>
-                    <button class="btn btn-sm btn-danger" onclick="rejectRequest('${request.id}')" title="Reject">
-                        <i class="fas fa-times"></i>
-                    </button>
+                        <button class="btn btn-sm btn-success" onclick="approveRequest('${request.id}')" title="Approve">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="rejectRequest('${request.id}')" title="Reject">
+                            <i class="fas fa-times"></i>
+                        </button>
                     <button class="btn btn-sm btn-info" onclick="viewRequestDetails('${request.id}')" title="View Details">
                         <i class="fas fa-eye"></i>
                     </button>
