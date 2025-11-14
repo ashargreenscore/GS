@@ -3,6 +3,7 @@
 let currentUser = null;
 let users = [];
 let materials = [];
+let filteredMaterials = [];
 let orderRequests = [];
 let orders = [];
 
@@ -272,12 +273,13 @@ async function loadMaterials() {
         
         if (result.success) {
             materials = result.materials || [];
+            filteredMaterials = [...materials];
             console.log(`Loaded ${materials.length} materials`);
             
             updateAdminMaterialsProgress(90, 'Rendering...');
             
             // Display immediately without delay
-            displayMaterials();
+            filterMaterials();
             populateSellerFilter();
             
             // Clear loading state after render
@@ -357,6 +359,62 @@ function toggleMaterialsView(view) {
     displayMaterials();
 }
 
+// Filter materials based on search and filters
+function filterMaterials() {
+    const searchQuery = document.getElementById('admin-search-materials')?.value?.toLowerCase().trim() || '';
+    const projectId = document.getElementById('admin-project-filter')?.value || 'all';
+    const listingType = document.getElementById('admin-listing-filter')?.value || 'all';
+    const sellerId = document.getElementById('admin-seller-filter')?.value || 'all';
+    const category = document.getElementById('admin-category-filter')?.value || 'all';
+    
+    // Start with all materials
+    filteredMaterials = [...materials];
+    
+    // Apply search filter
+    if (searchQuery) {
+        filteredMaterials = filteredMaterials.filter(material => {
+            const materialName = (material.material || '').toLowerCase();
+            const brand = (material.brand || '').toLowerCase();
+            const listingId = (material.listing_id || '').toLowerCase();
+            const materialCategory = (material.category || '').toLowerCase();
+            const specs = (material.specs || '').toLowerCase();
+            const projectName = (material.project_name || '').toLowerCase();
+            const sellerName = (material.seller_name || '').toLowerCase();
+            
+            return materialName.includes(searchQuery) ||
+                   brand.includes(searchQuery) ||
+                   listingId.includes(searchQuery) ||
+                   materialCategory.includes(searchQuery) ||
+                   specs.includes(searchQuery) ||
+                   projectName.includes(searchQuery) ||
+                   sellerName.includes(searchQuery);
+        });
+    }
+    
+    // Apply project filter
+    if (projectId !== 'all') {
+        filteredMaterials = filteredMaterials.filter(m => m.project_id === projectId);
+    }
+    
+    // Apply listing type filter
+    if (listingType !== 'all') {
+        filteredMaterials = filteredMaterials.filter(m => m.listing_type === listingType);
+    }
+    
+    // Apply seller filter
+    if (sellerId !== 'all') {
+        filteredMaterials = filteredMaterials.filter(m => m.seller_id === sellerId);
+    }
+    
+    // Apply category filter
+    if (category !== 'all') {
+        filteredMaterials = filteredMaterials.filter(m => m.category === category);
+    }
+    
+    // Display filtered results
+    displayMaterials();
+}
+
 function displayMaterials() {
     const countElement = document.getElementById('total-materials-count');
     const gridContainer = document.getElementById('materials-grid');
@@ -371,7 +429,7 @@ function displayMaterials() {
     }
     
     if (countElement) {
-        countElement.textContent = formatIndianNumber(materials.length);
+        countElement.textContent = formatIndianNumber(filteredMaterials.length);
     }
     
     if (currentMaterialsView === 'grid') {
@@ -384,12 +442,12 @@ function displayMaterials() {
 function displayMaterialsGrid() {
     const gridContainer = document.getElementById('materials-grid');
     
-    if (materials.length === 0) {
-        gridContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: #6b7280;"><i class="fas fa-boxes" style="font-size: 3rem; margin-bottom: 1rem; display: block;"></i><p>No materials found</p></div>';
+    if (filteredMaterials.length === 0) {
+        gridContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: #6b7280;"><i class="fas fa-boxes" style="font-size: 3rem; margin-bottom: 1rem; display: block;"></i><p>No materials found</p><small style="color: #9ca3af;">Try adjusting your search or filters</small></div>';
         return;
     }
     
-    gridContainer.innerHTML = materials.map(material => {
+    gridContainer.innerHTML = filteredMaterials.map(material => {
         // Parse photo - could be JSON array or base64 string
         let imageUrl = null;
         
@@ -498,12 +556,12 @@ function displayMaterialsGrid() {
 function displayMaterialsTable() {
     const tableBody = document.getElementById('materials-table-body');
     
-    if (materials.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 2rem;">No materials found</td></tr>';
+    if (filteredMaterials.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 2rem;">No materials found</td></tr><tr><td colspan="11" style="text-align: center; padding: 1rem; color: #9ca3af;"><small>Try adjusting your search or filters</small></td></tr>';
         return;
     }
     
-    tableBody.innerHTML = materials.map(material => {
+    tableBody.innerHTML = filteredMaterials.map(material => {
         // Parse photo for table view
         let photoUrl = null;
         if (material.photo) {
