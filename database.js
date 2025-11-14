@@ -1979,15 +1979,57 @@ class Database {
   }
 
   async updateMaterial(materialId, updateData) {
+    const pool = await this.ensurePool();
     try {
-      const fields = Object.keys(updateData).map((key, index) => `${key} = $${index + 1}`).join(', ');
-      const values = Object.values(updateData);
+      // Map frontend field names to database column names
+      const dbUpdateData = {};
+      
+      // Map common field name variations
+      if (updateData.material !== undefined) dbUpdateData.material = updateData.material;
+      if (updateData.brand !== undefined) dbUpdateData.brand = updateData.brand;
+      if (updateData.category !== undefined) dbUpdateData.category = this.normalizeCategory(updateData.category);
+      if (updateData.quantity !== undefined) dbUpdateData.quantity = updateData.quantity;
+      if (updateData.qty !== undefined) dbUpdateData.quantity = updateData.qty;
+      if (updateData.unit !== undefined) dbUpdateData.unit = updateData.unit;
+      if (updateData.condition !== undefined) dbUpdateData.condition = updateData.condition;
+      if (updateData.price_today !== undefined) dbUpdateData.price_today = updateData.price_today;
+      if (updateData.priceToday !== undefined) dbUpdateData.price_today = updateData.priceToday;
+      if (updateData.mrp !== undefined) dbUpdateData.mrp = updateData.mrp;
+      if (updateData.specs !== undefined) dbUpdateData.specs = updateData.specs;
+      if (updateData.photo !== undefined) dbUpdateData.photo = updateData.photo;
+      if (updateData.listing_type !== undefined) dbUpdateData.listing_type = updateData.listing_type;
+      if (updateData.listingType !== undefined) dbUpdateData.listing_type = updateData.listingType;
+      if (updateData.inventory_type !== undefined) dbUpdateData.inventory_type = updateData.inventory_type;
+      if (updateData.inventoryType !== undefined) dbUpdateData.inventory_type = updateData.inventoryType;
+      
+      // Calculate inventory_value if quantity or price changed
+      if (dbUpdateData.quantity !== undefined || dbUpdateData.price_today !== undefined) {
+        // Get current values to calculate inventory_value
+        const currentResult = await pool.query(
+          'SELECT quantity, price_today FROM materials WHERE id = $1',
+          [materialId]
+        );
+        const current = currentResult.rows[0];
+        
+        const qty = dbUpdateData.quantity !== undefined ? dbUpdateData.quantity : (current ? parseInt(current.quantity) : 0);
+        const price = dbUpdateData.price_today !== undefined ? dbUpdateData.price_today : (current ? parseFloat(current.price_today) : 0);
+        dbUpdateData.inventory_value = qty * price;
+      }
+      
+      // Check if we have any fields to update
+      if (Object.keys(dbUpdateData).length === 0) {
+        return { success: true, changes: 0, message: 'No fields to update' };
+      }
+      
+      const fields = Object.keys(dbUpdateData).map((key, index) => `${key} = $${index + 1}`).join(', ');
+      const values = Object.values(dbUpdateData);
       values.push(materialId);
       
       const query = `UPDATE materials SET ${fields}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`;
       const result = await pool.query(query, values);
       return { success: true, changes: result.rowCount };
     } catch (error) {
+      console.error('Database updateMaterial error:', error);
       throw error;
     }
   }

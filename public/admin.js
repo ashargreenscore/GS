@@ -1307,11 +1307,13 @@ async function updateMaterial(e) {
             closeMaterialEditModal();
             loadMaterials();
         } else {
-            showNotification('Failed to update material', 'error');
+            const errorMsg = result.error || result.message || 'Failed to update material';
+            console.error('Update failed:', errorMsg);
+            showNotification(errorMsg, 'error');
         }
     } catch (error) {
         console.error('Error updating material:', error);
-        showNotification('Error updating material', 'error');
+        showNotification(`Error updating material: ${error.message}`, 'error');
     }
 }
 
