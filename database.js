@@ -1947,15 +1947,18 @@ class Database {
   }
 
   async deleteMaterial(materialId) {
+    const pool = await this.ensurePool();
     try {
       const result = await pool.query('DELETE FROM materials WHERE id = $1', [materialId]);
       return { success: true, changes: result.rowCount };
     } catch (error) {
+      console.error('Database deleteMaterial error:', error);
       throw error;
     }
   }
 
   async deleteMaterialBySeller(materialId, sellerId) {
+    const pool = await this.ensurePool();
     try {
       // First check if the material belongs to this seller
       const materialResult = await pool.query('SELECT id, seller_id FROM materials WHERE id = $1', [materialId]);

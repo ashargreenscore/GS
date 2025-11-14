@@ -1333,11 +1333,13 @@ async function deleteMaterial(materialId) {
             loadMaterials();
             loadSystemStats(); // Refresh stats
         } else {
-            showNotification('Failed to delete material', 'error');
+            const errorMsg = result.error || result.message || 'Failed to delete material';
+            console.error('Delete failed:', errorMsg);
+            showNotification(errorMsg, 'error');
         }
     } catch (error) {
         console.error('Error deleting material:', error);
-        showNotification('Error deleting material', 'error');
+        showNotification(`Error deleting material: ${error.message}`, 'error');
     }
 }
 
