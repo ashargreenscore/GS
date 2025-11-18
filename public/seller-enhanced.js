@@ -244,8 +244,6 @@ function initializeDashboard() {
     setupEventListeners();
     loadNotifications();
     
-    // Set up auto-refresh system
-    setupAutoRefresh();
     updateStats();
     
     // Load charts after a short delay to ensure inventory is loaded
@@ -3096,88 +3094,6 @@ function debugTabs() {
     };
 }
 
-// Auto-refresh system
-let refreshInterval = null;
-let isPageVisible = true;
-let lastRefreshTime = Date.now();
-
-function setupAutoRefresh() {
-    console.log('🔄 Setting up auto-refresh system...');
-    
-    // Refresh when page becomes visible (user switches back to tab)
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden) {
-            isPageVisible = false;
-            console.log('📱 Page hidden - pausing auto-refresh');
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
-                refreshInterval = null;
-            }
-        } else {
-            isPageVisible = true;
-            console.log('📱 Page visible - resuming auto-refresh');
-            
-            // Refresh immediately if it's been more than 30 seconds
-            const timeSinceLastRefresh = Date.now() - lastRefreshTime;
-            if (timeSinceLastRefresh > 30000) {
-                console.log('⏰ Refreshing data after tab switch...');
-                refreshAllData();
-            }
-            
-            // Start periodic refresh
-            startPeriodicRefresh();
-        }
-    });
-    
-    // Start initial periodic refresh
-    startPeriodicRefresh();
-    
-    // Also restart refresh when user switches tabs (to adjust interval)
-    const tabButtons = document.querySelectorAll('.tab-button');
-    tabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            // Small delay to let tab switch complete, then restart refresh
-            setTimeout(() => {
-                startPeriodicRefresh();
-            }, 100);
-        });
-    });
-}
-
-function startPeriodicRefresh() {
-    if (refreshInterval) {
-        clearInterval(refreshInterval);
-    }
-    
-    // Smart refresh: Check which tab is active
-    const activeTab = document.querySelector('.tab-content.active');
-    const isOrderRequestsActive = activeTab && activeTab.id === 'order-requests-tab';
-    
-    // Faster refresh (30 seconds) if order requests tab is active (time-sensitive)
-    // Slower refresh (60 seconds) otherwise (inventory/projects don't change often)
-    const interval = isOrderRequestsActive ? 30000 : 60000; // 30s for orders, 60s otherwise
-    
-    refreshInterval = setInterval(() => {
-        if (isPageVisible) {
-            // Re-check active tab on each refresh in case user switched tabs
-            const currentTab = document.querySelector('.tab-content.active');
-            const currentlyOnOrders = currentTab && currentTab.id === 'order-requests-tab';
-            
-            // If tab changed, restart with appropriate interval
-            if (currentlyOnOrders !== isOrderRequestsActive) {
-                startPeriodicRefresh(); // Restart with new interval
-                return;
-            }
-            
-            console.log('🔄 Periodic refresh...');
-            refreshAllData();
-        }
-    }, interval);
-    
-    const intervalSeconds = interval / 1000;
-    console.log(`✅ Periodic refresh started (${intervalSeconds} second intervals${isOrderRequestsActive ? ' - Order Requests tab active' : ''})`);
-}
-
 async function refreshAllData() {
     try {
         showRefreshIndicator(true);
@@ -3197,7 +3113,6 @@ async function refreshAllData() {
         
         await Promise.all(promises);
         
-        lastRefreshTime = Date.now();
         console.log('✅ Data refresh completed');
         
         // Show brief success indicator

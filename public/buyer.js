@@ -57,14 +57,6 @@ document.addEventListener('DOMContentLoaded', function() {
         setInterval(checkMapView, 1000);
     }
     
-    // Set up auto-refresh system
-    setupAutoRefresh();
-    
-    // Set up periodic refresh for notifications
-    setInterval(() => {
-        loadNotifications();
-    }, 30000); // Check every 30 seconds
-    
     // Close notifications dropdown when clicking outside
     document.addEventListener('click', (e) => {
         const dropdown = document.getElementById('notifications-dropdown');
@@ -1926,59 +1918,6 @@ window.toggleCart = toggleCart;
 window.clearCart = clearCart;
 window.setCartQuantity = setCartQuantity;
 window.addToCartWithQty = addToCartWithQty;
-// Auto-refresh system for buyer marketplace
-let refreshInterval = null;
-let isPageVisible = true;
-let lastRefreshTime = Date.now();
-
-function setupAutoRefresh() {
-    console.log('🔄 Setting up buyer auto-refresh system...');
-    
-    // Refresh when page becomes visible (user switches back to tab)
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden) {
-            isPageVisible = false;
-            console.log('📱 Buyer page hidden - pausing auto-refresh');
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
-                refreshInterval = null;
-            }
-        } else {
-            isPageVisible = true;
-            console.log('📱 Buyer page visible - resuming auto-refresh');
-            
-            // Refresh immediately if it's been more than 30 seconds
-            const timeSinceLastRefresh = Date.now() - lastRefreshTime;
-            if (timeSinceLastRefresh > 30000) {
-                console.log('⏰ Refreshing marketplace after tab switch...');
-                refreshMarketplace();
-            }
-            
-            // Start periodic refresh
-            startPeriodicRefresh();
-        }
-    });
-    
-    // Start initial periodic refresh
-    startPeriodicRefresh();
-}
-
-function startPeriodicRefresh() {
-    if (refreshInterval) {
-        clearInterval(refreshInterval);
-    }
-    
-    // Refresh every 60 seconds when page is visible (less frequent for buyers)
-    refreshInterval = setInterval(() => {
-        if (isPageVisible) {
-            console.log('🔄 Periodic marketplace refresh...');
-            refreshMarketplace();
-        }
-    }, 60000);
-    
-    console.log('✅ Buyer periodic refresh started (60 second intervals)');
-}
-
 async function refreshMarketplace() {
     try {
         showRefreshIndicator(true);
@@ -1989,7 +1928,6 @@ async function refreshMarketplace() {
             loadCategories()
         ]);
         
-        lastRefreshTime = Date.now();
         console.log('✅ Marketplace refresh completed');
         
         // Show brief success indicator
