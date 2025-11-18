@@ -5026,7 +5026,7 @@ function displayProfileRequests() {
     
     if (profileOrderRequests.length === 0) {
         requestsList.innerHTML = `
-            <div style="text-align: center; padding: 3rem; color: #6b7280;">
+            <div class="profile-page-empty-state" style="text-align: center; padding: 3rem;">
                 <i class="fas fa-clock" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
                 <p style="font-size: 1.1rem; font-weight: 500;">No order requests</p>
                 <p style="margin-top: 0.5rem;">Incoming order requests will appear here</p>
@@ -5049,17 +5049,17 @@ function displayProfileRequests() {
         const firstPhoto = photos.length > 0 ? photos[0] : null;
         
         return `
-            <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <div class="order-card-item profile-page-card" style="margin-bottom: 1rem;">
                 <div style="display: grid; grid-template-columns: 150px 1fr auto; gap: 1.5rem; align-items: start;">
                     ${firstPhoto ? `
-                    <div style="width: 150px; height: 150px; border-radius: 8px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e7eb;">
+                    <div class="order-image-placeholder" style="width: 150px; height: 150px; border-radius: 8px; overflow: hidden;">
                         <img src="${firstPhoto}" alt="${request.material_name}" style="width: 100%; height: 100%; object-fit: contain; padding: 0.5rem;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                        <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text-secondary);">
                             <i class="fas fa-image" style="font-size:1.5rem; opacity: 0.5;"></i>
                         </div>
                     </div>
                     ` : `
-                    <div style="width: 150px; height: 150px; border-radius: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af;">
+                    <div class="order-image-placeholder" style="width: 150px; height: 150px; border-radius: 8px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
                         <i class="fas fa-image" style="font-size:1.5rem; opacity: 0.5;"></i>
                     </div>
                     `}
@@ -5067,8 +5067,8 @@ function displayProfileRequests() {
                     <div style="flex: 1;">
                         <div style="display: flex; align-items: start; justify-content: space-between; margin-bottom: 0.75rem;">
                             <div>
-                                <h4 style="margin: 0 0 0.25rem 0; font-size: 1.125rem; font-weight: 700; color: #1f2937;">${request.material_name}</h4>
-                                ${request.brand ? `<p style="margin: 0 0 0.5rem 0; color: #6b7280; font-size: 0.875rem;">${request.brand}</p>` : ''}
+                                <h4 class="profile-page-section-title" style="margin: 0 0 0.25rem 0; font-size: 1.125rem;">${request.material_name}</h4>
+                                ${request.brand ? `<p class="profile-page-email" style="margin: 0 0 0.5rem 0; font-size: 0.875rem;">${request.brand}</p>` : ''}
                                 <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
                                     ${request.category ? `<span style="padding: 0.25rem 0.5rem; background: #dbeafe; color: #1e40af; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;">${request.category}</span>` : ''}
                                     ${request.condition ? `<span style="padding: 0.25rem 0.5rem; background: #fef3c7; color: #92400e; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;">${request.condition.charAt(0).toUpperCase() + request.condition.slice(1)}</span>` : ''}
@@ -5076,29 +5076,29 @@ function displayProfileRequests() {
                             </div>
                         </div>
                         
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
+                        <div class="order-info-box" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border-radius: 8px;">
                             <div>
-                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Request ID</div>
-                                <div style="font-size: 0.875rem; font-weight: 500; font-family: monospace;">${request.id.substring(0, 12)}...</div>
+                                <div class="order-detail-label profile-page-label">Request ID</div>
+                                <div class="order-detail-value profile-page-value" style="font-family: monospace;">${request.id.substring(0, 12)}...</div>
                             </div>
                             <div>
-                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Quantity</div>
-                                <div style="font-size: 0.875rem; font-weight: 500;">${request.quantity} ${request.unit || 'units'}</div>
+                                <div class="order-detail-label profile-page-label">Quantity</div>
+                                <div class="order-detail-value profile-page-value">${request.quantity} ${request.unit || 'units'}</div>
                             </div>
                             <div>
-                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Buyer</div>
-                                <div style="font-size: 0.875rem; font-weight: 500;">${request.buyer_name}${request.buyer_company && request.buyer_company.toLowerCase() !== 'n/a' ? ` (${request.buyer_company})` : ''}</div>
+                                <div class="order-detail-label profile-page-label">Buyer</div>
+                                <div class="order-detail-value profile-page-value">${request.buyer_name}${request.buyer_company && request.buyer_company.toLowerCase() !== 'n/a' ? ` (${request.buyer_company})` : ''}</div>
                             </div>
                             <div>
-                                <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Requested On</div>
-                                <div style="font-size: 0.875rem; font-weight: 500;">${formatDateTime(request.created_at)}</div>
+                                <div class="order-detail-label profile-page-label">Requested On</div>
+                                <div class="order-detail-value profile-page-value">${formatDateTime(request.created_at)}</div>
                             </div>
                         </div>
                         
                         ${request.delivery_address ? `
-                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: #ecfdf5; border-radius: 8px; border-left: 3px solid #10b981;">
-                            <div style="color: #065f46; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem;">Delivery Address</div>
-                            <div style="color: #047857; font-size: 0.875rem; line-height: 1.5;">${request.delivery_address}</div>
+                        <div class="shipping-address-box" style="margin-top: 0.75rem; padding: 0.75rem; border-radius: 8px;">
+                            <div class="shipping-address-label profile-page-label">Delivery Address</div>
+                            <div class="shipping-address-value profile-page-value" style="line-height: 1.5;">${request.delivery_address}</div>
                         </div>
                         ` : ''}
                     </div>
@@ -5109,10 +5109,10 @@ function displayProfileRequests() {
                                 ${request.status.toUpperCase().replace('_', ' ')}
                             </span>
                         </div>
-                        <div style="font-size: 1.25rem; font-weight: 700; color: #059669; margin-bottom: 0.5rem;">
+                        <div class="order-price" style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">
                             ${formatIndianCurrency(request.total_amount)}
                         </div>
-                        <div style="font-size: 0.875rem; color: #6b7280;">
+                        <div class="order-price-detail profile-page-email" style="font-size: 0.875rem;">
                             Unit: ${formatIndianCurrency(request.unit_price || request.current_price || 0)}
                         </div>
                     </div>
