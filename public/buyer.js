@@ -2561,8 +2561,9 @@ async function displayMaterialsOnMap(materialsToShow) {
                 .openOn(map);
         }
         
-        // Geocode addresses (with rate limiting)
-        for (let i = 0; i < materialsToGeocode.length && i < 10; i++) { // Limit to 10 at a time
+        // Geocode addresses (with rate limiting) - increased limit to show more items
+        const geocodeLimit = Math.min(materialsToGeocode.length, 50);
+        for (let i = 0; i < geocodeLimit; i++) {
             const material = materialsToGeocode[i];
             const address = material.project_location || material.location_details;
             
@@ -2593,9 +2594,9 @@ async function displayMaterialsOnMap(materialsToShow) {
                     // For now, coordinates are cached in memory for the session
                 }
                 
-                // Rate limit: wait 1 second between requests
-                if (i < materialsToGeocode.length - 1 && i < 9) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                // Rate limit: wait 500ms between requests (faster than before)
+                if (i < geocodeLimit - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
             } catch (error) {
                 console.error('Geocoding error for material:', material.id, error);
@@ -2662,10 +2663,20 @@ async function displayMaterialsOnMap(materialsToShow) {
         markerClusterGroup.addLayer(marker);
     });
     
-    // Fit map to show all markers
+    // Fit map to show all markers with proper bounds
     if (materialsWithCoords.length > 0) {
         const bounds = materialsWithCoords.map(m => [parseFloat(m.latitude), parseFloat(m.longitude)]);
-        map.fitBounds(bounds, { padding: [50, 50] });
+        // Filter out invalid coordinates
+        const validBounds = bounds.filter(b => !isNaN(b[0]) && !isNaN(b[1]) && b[0] !== 0 && b[1] !== 0);
+        
+        if (validBounds.length > 0) {
+            // If only one marker, zoom to a reasonable level
+            if (validBounds.length === 1) {
+                map.setView(validBounds[0], 10);
+            } else {
+                map.fitBounds(validBounds, { padding: [50, 50], maxZoom: 15 });
+            }
+        }
     }
 }
 

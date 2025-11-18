@@ -844,8 +844,9 @@ async function displayMapView(filteredMaterials) {
                 .openOn(sellerMap);
         }
         
-        // Geocode addresses (with rate limiting)
-        for (let i = 0; i < materialsToGeocode.length && i < 10; i++) {
+        // Geocode addresses (with rate limiting) - increased limit to show more items
+        const geocodeLimit = Math.min(materialsToGeocode.length, 50);
+        for (let i = 0; i < geocodeLimit; i++) {
             const material = materialsToGeocode[i];
             const address = material.project_location || material.location_details || material.location;
             
@@ -863,9 +864,9 @@ async function displayMapView(filteredMaterials) {
                     materialsWithCoords.push(material);
                 }
                 
-                // Rate limit: wait 1 second between requests
-                if (i < materialsToGeocode.length - 1 && i < 9) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                // Rate limit: wait 500ms between requests (faster than before)
+                if (i < geocodeLimit - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
             } catch (error) {
                 console.error('Geocoding error for material:', material.id, error);
@@ -919,17 +920,22 @@ async function displayMapView(filteredMaterials) {
             `<img src="${photoUrl}" alt="${material.material}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;">` :
             '<div style="width: 100px; height: 100px; background: #e5e7eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;"><i class="fas fa-image" style="color: #9ca3af;"></i></div>';
         
+        // Get price and quantity with proper fallbacks and ensure they're numbers
+        const price = parseFloat(material.priceToday || material.price_today || material.price || 0) || 0;
+        const quantity = parseInt(material.qty || material.quantity || 0) || 0;
+        const unit = material.unit || 'pcs';
+        
         const popupContent = `
             <div style="min-width: 200px; max-width: 300px;">
                 ${photoHtml}
                 <h4 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #111827;">${material.material || 'Material'}</h4>
-                ${material.brand ? `<p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px;"><strong>Brand:</strong> ${material.brand}</p>` : ''}
+                ${material.brand && material.brand !== 'n/a' && material.brand !== 'N/A' ? `<p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px;"><strong>Brand:</strong> ${material.brand}</p>` : ''}
                 <p style="margin: 0 0 8px 0; color: #111827; font-size: 16px; font-weight: 700;">
-                    <span style="color: #10b981;">₹${material.priceToday || material.price_today || 0}</span>
-                    <span style="color: #6b7280; font-size: 12px; font-weight: 400;">/${material.unit || 'pcs'}</span>
+                    <span style="color: #10b981;">₹${price.toLocaleString('en-IN')}</span>
+                    <span style="color: #6b7280; font-size: 12px; font-weight: 400;">/${unit}</span>
                 </p>
                 <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 14px;">
-                    <strong>Quantity:</strong> ${material.qty || material.quantity || 0} ${material.unit || 'pcs'}
+                    <strong>Quantity:</strong> ${quantity.toLocaleString('en-IN')} ${unit}
                 </p>
                 <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 14px;">
                     <strong>Project:</strong> ${getProjectName(material.projectId)}
@@ -950,10 +956,20 @@ async function displayMapView(filteredMaterials) {
         sellerMarkerClusterGroup.addLayer(marker);
     });
     
-    // Fit map to show all markers
+    // Fit map to show all markers with proper bounds
     if (materialsWithCoords.length > 0) {
         const bounds = materialsWithCoords.map(m => [parseFloat(m.latitude), parseFloat(m.longitude)]);
-        sellerMap.fitBounds(bounds, { padding: [50, 50] });
+        // Filter out invalid coordinates
+        const validBounds = bounds.filter(b => !isNaN(b[0]) && !isNaN(b[1]) && b[0] !== 0 && b[1] !== 0);
+        
+        if (validBounds.length > 0) {
+            // If only one marker, zoom to a reasonable level
+            if (validBounds.length === 1) {
+                sellerMap.setView(validBounds[0], 10);
+            } else {
+                sellerMap.fitBounds(validBounds, { padding: [50, 50], maxZoom: 15 });
+            }
+        }
     }
 }
 
