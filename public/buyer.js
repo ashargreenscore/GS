@@ -1230,32 +1230,32 @@ function showProductModal(materialId) {
                     </span>
                 </div>
                 
-                <h3 style="font-size: 1.375rem; margin-bottom: 0.5rem; color: #111827; font-weight: 700; line-height: 1.3;">${material.material}</h3>
+                <h3 style="font-size: 1.375rem; margin-bottom: 0.5rem; color: var(--text-primary); font-weight: 700; line-height: 1.3;">${material.material}</h3>
                 ${material.brand ? `
-                <div style="font-size: 1rem; color: #6b7280; margin-bottom: 1rem; font-weight: 600;">
+                <div style="font-size: 1rem; color: var(--text-secondary); margin-bottom: 1rem; font-weight: 600;">
                     ${material.brand}
                 </div>` : ''}
                 
-                <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 1rem; border-radius: 8px; margin-bottom: 0.875rem; border: 1px solid #e2e8f0;">
+                <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: 8px; margin-bottom: 0.875rem; border: 1px solid var(--border-color);">
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem;">
                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                            <div style="color: #64748b; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Condition</div>
-                            <div style="font-weight: 700; color: #0f172a; font-size: 0.875rem;">${material.condition ? material.condition.charAt(0).toUpperCase() + material.condition.slice(1) : 'Good'}</div>
+                            <div style="color: var(--text-secondary); font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Condition</div>
+                            <div style="font-weight: 700; color: var(--text-primary); font-size: 0.875rem;">${material.condition ? material.condition.charAt(0).toUpperCase() + material.condition.slice(1) : 'Good'}</div>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                            <div style="color: #64748b; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Available Qty</div>
-                            <div style="font-weight: 700; color: #0f172a; font-size: 1.125rem;">${material.qty} <span style="font-size: 0.875rem; color: #64748b;">${material.unit || 'pcs'}</span></div>
+                            <div style="color: var(--text-secondary); font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Available Qty</div>
+                            <div style="font-weight: 700; color: var(--text-primary); font-size: 1.125rem;">${material.qty} <span style="font-size: 0.875rem; color: var(--text-secondary);">${material.unit || 'pcs'}</span></div>
                         </div>
                         ${material.dimensions ? `
                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                            <div style="color: #64748b; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Dimensions</div>
-                            <div style="font-weight: 700; color: #0f172a; font-size: 0.875rem;">${material.dimensions}</div>
+                            <div style="color: var(--text-secondary); font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Dimensions</div>
+                            <div style="font-weight: 700; color: var(--text-primary); font-size: 0.875rem;">${material.dimensions}</div>
                         </div>
                         ` : ''}
                         ${material.weight ? `
                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                            <div style="color: #64748b; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Weight</div>
-                            <div style="font-weight: 700; color: #0f172a; font-size: 0.875rem;">${material.weight} <span style="font-size: 0.75rem; color: #64748b;">kg</span></div>
+                            <div style="color: var(--text-secondary); font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em;">Weight</div>
+                            <div style="font-weight: 700; color: var(--text-primary); font-size: 0.875rem;">${material.weight} <span style="font-size: 0.75rem; color: var(--text-secondary);">kg</span></div>
                         </div>
                         ` : ''}
                     </div>
