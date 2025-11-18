@@ -5,6 +5,29 @@
     box-sizing: border-box;
 }
 
+/* Dark mode CSS variables */
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f3f4f6;
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --border-color: #e5e7eb;
+    --card-bg: #ffffff;
+    --shadow: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] {
+    --bg-primary: #1f2937;
+    --bg-secondary: #111827;
+    --bg-tertiary: #374151;
+    --text-primary: #f9fafb;
+    --text-secondary: #d1d5db;
+    --border-color: #4b5563;
+    --card-bg: #374151;
+    --shadow: rgba(0, 0, 0, 0.3);
+}
+
 /* Map View Styles */
 #map-container {
     width: 100%;
@@ -123,8 +146,9 @@
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     line-height: 1.6;
-    color: #333;
-    background-color: #f8fafc;
+    color: var(--text-primary);
+    background-color: var(--bg-secondary);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .container {
@@ -3685,3 +3709,120 @@ body {
 }
 
 /* Keep category filter visible; duplicates handled in JS */
+
+/* Confirmation Dialog Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Print-friendly styles */
+@media print {
+    /* Hide non-essential elements */
+    .header, .sidebar, .filters, .view-toggle, 
+    button, .btn, .notification-btn, .cart-icon,
+    .modal, .dropdown, nav, .inventory-controls,
+    .marketplace-controls, .search-section,
+    #map-container, #inventory-map-container,
+    #admin-materials-map-container {
+        display: none !important;
+    }
+    
+    /* Show only content */
+    body {
+        background: white !important;
+        color: black !important;
+        font-size: 12pt;
+        line-height: 1.5;
+    }
+    
+    .products-grid, .inventory-grid, .materials-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 1rem;
+        page-break-inside: avoid;
+    }
+    
+    .product-card, .material-card {
+        border: 1px solid #ccc !important;
+        page-break-inside: avoid;
+        margin-bottom: 1rem;
+        padding: 1rem;
+    }
+    
+    /* Table styles for print */
+    table {
+        width: 100% !important;
+        border-collapse: collapse;
+    }
+    
+    table th, table td {
+        border: 1px solid #000 !important;
+        padding: 0.5rem;
+        text-align: left;
+    }
+    
+    table th {
+        background: #f0f0f0 !important;
+        font-weight: bold;
+    }
+    
+    /* Page breaks */
+    .product-card, .material-card, tr {
+        page-break-inside: avoid;
+    }
+    
+    /* Headers and footers */
+    @page {
+        margin: 2cm;
+    }
+    
+    h1, h2, h3 {
+        page-break-after: avoid;
+    }
+}
+
+/* Form validation styles */
+input.error, select.error, textarea.error {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.field-error {
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.field-error i {
+    font-size: 0.75rem;
+}
+
+/* Skeleton loader animation */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}

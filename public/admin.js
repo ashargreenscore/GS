@@ -44,6 +44,8 @@ function setupEventListeners() {
     const materialEditForm = document.getElementById('material-edit-form');
     if (materialEditForm) {
         materialEditForm.addEventListener('submit', updateMaterial);
+        // Setup auto-save for material edit form
+        setupAutoSave('material-edit-form', 'greenscore-admin-edit-material-draft');
     }
 }
 
@@ -422,6 +424,19 @@ function filterMaterials() {
     
     // Display filtered results
     displayMaterials();
+}
+
+// Clear all admin filters
+function clearAdminFilters() {
+    const searchInput = document.getElementById('admin-search-materials');
+    if (searchInput) searchInput.value = '';
+    document.getElementById('admin-project-filter').value = 'all';
+    document.getElementById('admin-listing-filter').value = 'all';
+    document.getElementById('admin-seller-filter').value = 'all';
+    document.getElementById('admin-category-filter').value = 'all';
+    
+    filterMaterials();
+    showNotification('Filters cleared', 'success');
 }
 
 function displayMaterials() {
@@ -1528,9 +1543,13 @@ async function updateMaterial(e) {
 }
 
 async function deleteMaterial(materialId) {
-    if (!confirm('Are you sure you want to delete this material? This action cannot be undone.')) {
-        return;
-    }
+    const confirmed = await showConfirmDialog(
+        'Are you sure you want to delete this material? This action cannot be undone.',
+        'Delete Material',
+        'Delete',
+        'Cancel'
+    );
+    if (!confirmed) return;
     
     try {
         const response = await fetch(`/api/admin/materials/${materialId}`, {
@@ -1570,11 +1589,31 @@ async function exportUsers() {
 
 async function exportMaterials() {
     try {
-        const response = await fetch('/api/admin/export/materials');
-        if (response.ok) {
-            const blob = await response.blob();
-            downloadFile(blob, 'materials-report.csv');
-            showNotification('Materials report exported successfully!', 'success');
+        // Export filtered materials (client-side)
+        if (filteredMaterials && filteredMaterials.length > 0) {
+            const columns = [
+                { key: 'material', label: 'Material' },
+                { key: 'brand', label: 'Brand' },
+                { key: 'category', label: 'Category' },
+                { key: 'quantity', label: 'Quantity' },
+                { key: 'unit', label: 'Unit' },
+                { key: 'price_today', label: 'Price' },
+                { key: 'mrp', label: 'MRP' },
+                { key: 'project_name', label: 'Project' },
+                { key: 'seller_name', label: 'Seller' },
+                { key: 'listing_type', label: 'Status' },
+                { key: 'created_at', label: 'Created Date' }
+            ];
+            exportToCSV(filteredMaterials, 'materials-export', columns);
+            showNotification(`Exported ${filteredMaterials.length} materials successfully!`, 'success');
+        } else {
+            // Fallback to server-side export if no filtered materials
+            const response = await fetch('/api/admin/export/materials');
+            if (response.ok) {
+                const blob = await response.blob();
+                downloadFile(blob, 'materials-report.csv');
+                showNotification('Materials report exported successfully!', 'success');
+            }
         }
     } catch (error) {
         console.error('Error exporting materials:', error);
@@ -1728,9 +1767,13 @@ async function deleteUser(userId) {
     const user = users.find(u => u.id === userId);
     if (!user) return;
     
-    if (!confirm(`Are you sure you want to delete user "${user.name}" (${user.email})? This will also delete all their materials and orders. This action cannot be undone.`)) {
-        return;
-    }
+    const confirmed = await showConfirmDialog(
+        `Are you sure you want to delete user "${user.name}" (${user.email})? This will also delete all their materials and orders. This action cannot be undone.`,
+        'Delete User',
+        'Delete',
+        'Cancel'
+    );
+    if (!confirmed) return;
     
     try {
         const response = await fetch(`/api/admin/users/${userId}`, {
@@ -1790,9 +1833,13 @@ function closeBulkActionsModal() {
 }
 
 async function bulkDelete() {
-    if (!confirm(`Are you sure you want to delete ${selectedItems.size} items? This action cannot be undone.`)) {
-        return;
-    }
+    const confirmed = await showConfirmDialog(
+        `Are you sure you want to delete ${selectedItems.size} items? This action cannot be undone.`,
+        'Bulk Delete',
+        'Delete All',
+        'Cancel'
+    );
+    if (!confirmed) return;
     
     let successCount = 0;
     let failCount = 0;
@@ -1846,6 +1893,34 @@ async function updateOrderStatus(orderId, status) {
     }
 }
 
+// Keyboard shortcuts for admin panel
+document.addEventListener('keydown', function(e) {
+    // Ctrl+F or Cmd+F: Focus search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !e.shiftKey) {
+        const searchInput = document.getElementById('admin-search-materials');
+        if (searchInput && document.activeElement !== searchInput) {
+            e.preventDefault();
+            searchInput.focus();
+            searchInput.select();
+        }
+    }
+    
+    // Esc: Close modals
+    if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('.modal.show');
+        modals.forEach(modal => modal.classList.remove('show'));
+    }
+    
+    // Ctrl+S or Cmd+S: Save forms
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        const activeForm = document.activeElement?.closest('form');
+        if (activeForm && activeForm.querySelector('button[type="submit"]')) {
+            e.preventDefault();
+            activeForm.querySelector('button[type="submit"]').click();
+        }
+    }
+});
+
 // Setup form event listeners
 document.addEventListener('DOMContentLoaded', function() {
     const userEditForm = document.getElementById('user-edit-form');
@@ -1862,6 +1937,7 @@ window.closeBulkActionsModal = closeBulkActionsModal;
 window.toggleSelectAll = toggleSelectAll;
 window.toggleSelectItem = toggleSelectItem;
 window.bulkDelete = bulkDelete;
+window.clearAdminFilters = clearAdminFilters;
 // Order Request Management
 async function approveRequest(requestId) {
     try {
@@ -1885,9 +1961,13 @@ async function approveRequest(requestId) {
 }
 
 async function rejectRequest(requestId) {
-    if (!confirm('Are you sure you want to reject this order request?')) {
-        return;
-    }
+    const confirmed = await showConfirmDialog(
+        'Are you sure you want to reject this order request?',
+        'Reject Order Request',
+        'Reject',
+        'Cancel'
+    );
+    if (!confirmed) return;
     
     try {
         const response = await fetch(`/api/admin/order-requests/${requestId}/reject`, {

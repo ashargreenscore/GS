@@ -121,7 +121,7 @@
                 </div>
             </div>
 
-            <div class="dashboard-stats">
+                    <div class="dashboard-stats" id="dashboard-stats">
                 <div class="stat-card">
                     <div class="stat-icon">
                         <i class="fas fa-boxes"></i>
@@ -240,7 +240,7 @@
                     <div class="inventory-section">
                         <div class="inventory-header">
                             <h2>My Inventory</h2>
-                            <div class="inventory-controls">
+                            <div class="inventory-controls" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                                 <select id="project-filter">
                                     <option value="all">All Projects</option>
                                 </select>
@@ -259,6 +259,9 @@
                                     <option value="sold">Sold</option>
                                 </select>
                                 <input type="text" id="search-inventory" placeholder="Search inventory...">
+                                <button class="btn btn-secondary" onclick="clearInventoryFilters()" title="Clear all filters">
+                                    <i class="fas fa-times-circle"></i> Clear
+                                </button>
                                 <div class="view-toggle">
                                     <button class="view-btn active" onclick="setView('grid')" id="grid-view-btn">
                                         <i class="fas fa-th"></i>
@@ -270,6 +273,12 @@
                                         <i class="fas fa-map"></i>
                                     </button>
                                 </div>
+                                <button class="btn btn-secondary" onclick="exportInventory()" title="Export to CSV">
+                                    <i class="fas fa-download"></i> Export
+                                </button>
+                                <button class="btn btn-secondary" id="bulk-action-btn" onclick="showBulkActionsModal()" disabled title="Bulk Actions">
+                                    <i class="fas fa-tasks"></i> Bulk Actions (<span id="selected-count">0</span>)
+                                </button>
                             </div>
                         </div>
 
@@ -287,6 +296,9 @@
                             <table class="data-table">
                                 <thead>
                                     <tr>
+                                        <th style="width: 40px;">
+                                            <input type="checkbox" id="select-all-items" onchange="toggleSelectAllItems(this.checked)" title="Select All">
+                                        </th>
                                         <th>Material</th>
                                         <th>Brand</th>
                                         <th>Category</th>
@@ -308,7 +320,17 @@
                 <!-- Manual Add Tab -->
                 <div id="manual-tab" class="tab-content">
                     <div class="manual-add-section">
-                        <h2>Add Single Item</h2>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h2>Add Single Item</h2>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button type="button" class="btn btn-secondary" onclick="showMaterialTemplates()" title="Use Template">
+                                    <i class="fas fa-file-alt"></i> Templates
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="saveAsTemplate()" title="Save as Template">
+                                    <i class="fas fa-save"></i> Save Template
+                                </button>
+                            </div>
+                        </div>
                         <form id="manual-item-form" class="item-form">
                             <div class="form-grid">
                                 <div class="form-group">

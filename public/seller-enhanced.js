@@ -68,6 +68,35 @@ document.addEventListener('DOMContentLoaded', function(){
     setTimeout(initSellerTour, 800);
     setTimeout(addSellerHelpButton, 1000);
 });
+
+// Keyboard shortcuts for seller dashboard
+document.addEventListener('keydown', function(e) {
+    // Ctrl+F or Cmd+F: Focus search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !e.shiftKey) {
+        const searchInput = document.getElementById('search-inventory');
+        if (searchInput && document.activeElement !== searchInput) {
+            e.preventDefault();
+            searchInput.focus();
+            searchInput.select();
+        }
+    }
+    
+    // Esc: Close modals
+    if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('.modal.show');
+        modals.forEach(modal => modal.classList.remove('show'));
+    }
+    
+    // Ctrl+S or Cmd+S: Save forms
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        const activeForm = document.activeElement?.closest('form');
+        if (activeForm && activeForm.querySelector('button[type="submit"]')) {
+            e.preventDefault();
+            activeForm.querySelector('button[type="submit"]').click();
+        }
+    }
+});
+
 // Enhanced Seller Dashboard JavaScript with all new features
 
 let currentUser = null;
@@ -79,6 +108,9 @@ let transactionHistory = [];
 let currentMaterialRequests = [];
 let currentView = 'grid';
 let selectedFile = null; // Store the selected file globally
+let selectedInventoryItems = new Set(); // Bulk selection for inventory items
+let materialTemplates = []; // Material templates for quick add
+let priceHistory = {}; // Price history tracking
 
 // Initialize the enhanced seller dashboard
 document.addEventListener('DOMContentLoaded', function() {
@@ -96,6 +128,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Validate user exists on server (will call initializeDashboard if valid)
     validateUserWithServer();
+    
+    // Load templates and price history
+    loadMaterialTemplates();
+    loadPriceHistory();
 });
 
 // Authentication functions
@@ -211,6 +247,11 @@ function initializeDashboard() {
     // Set up auto-refresh system
     setupAutoRefresh();
     updateStats();
+    
+    // Load charts after a short delay to ensure inventory is loaded
+    setTimeout(() => {
+        loadDashboardCharts();
+    }, 1000);
     
     console.log('✅ Seller dashboard initialization complete');
 }
@@ -603,6 +644,24 @@ function displayInventory() {
     }
 }
 
+// Clear all inventory filters
+function clearInventoryFilters() {
+    const searchInput = document.getElementById('search-inventory');
+    if (searchInput) searchInput.value = '';
+    
+    const projectFilter = document.getElementById('project-filter');
+    const currentProject = document.getElementById('current-project');
+    if (projectFilter) projectFilter.value = 'all';
+    if (currentProject) currentProject.value = 'all';
+    
+    document.getElementById('category-filter').value = 'all';
+    document.getElementById('inventory-type-filter').value = 'all';
+    document.getElementById('listing-type-filter').value = 'all';
+    
+    displayInventory();
+    showNotification('Filters cleared', 'success');
+}
+
 // Display materials in grid view
 function displayGridView(filteredMaterials) {
     const inventoryGrid = document.getElementById('inventory-grid');
@@ -753,6 +812,11 @@ function displayTableView(filteredMaterials) {
     
     tableBody.innerHTML = filteredMaterials.map(material => `
         <tr onclick="viewMaterialDetail('${material.id}')" style="cursor: pointer;">
+            <td onclick="event.stopPropagation();">
+                <input type="checkbox" class="item-checkbox" value="${material.id}" 
+                       onchange="toggleSelectInventoryItem('${material.id}', this.checked)"
+                       ${selectedInventoryItems.has(material.id) ? 'checked' : ''}>
+            </td>
             <td>
                 <strong>${material.material}</strong>
                 <br><small>${material.specs || 'No specifications'}</small>
@@ -1058,7 +1122,12 @@ async function deleteMaterial(materialId) {
         return;
     }
     
-    const confirmed = confirm(`Are you sure you want to delete "${material.material}"? This action cannot be undone.`);
+    const confirmed = await showConfirmDialog(
+        `Are you sure you want to delete "${material.material}"? This action cannot be undone.`,
+        'Delete Material',
+        'Delete',
+        'Cancel'
+    );
     if (!confirmed) return;
     
     try {
@@ -1227,6 +1296,8 @@ function cancelEdit() {
 document.addEventListener('DOMContentLoaded', function() {
     const editForm = document.getElementById('edit-material-form');
     if (editForm) {
+        // Setup auto-save for edit form
+        setupAutoSave('edit-material-form', 'greenscore-edit-material-draft');
         editForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -1316,41 +1387,97 @@ function triggerEditPhotoUpload() {
     document.getElementById('edit-photo-input').click();
 }
 
-// Handle photo file uploads for edit modal
+// Handle photo file uploads for edit modal with progress
 async function handleEditPhotoFiles(input) {
     const files = Array.from(input.files);
     const previewGrid = document.getElementById('edit-photo-preview-grid');
     
-    for (const file of files) {
-        if (file.type.startsWith('image/')) {
-            // Upload to server first
-            try {
-                const formData = new FormData();
-                formData.append('image', file);
-                
-                const uploadResponse = await fetch('/api/upload-image', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const uploadResult = await uploadResponse.json();
-                
-                if (uploadResult.success) {
-                    // Add the server URL to the photos array
-                    editUploadedPhotos.push(uploadResult.imageUrl);
-                    updateEditPhotoPreview();
-                } else {
-                    showNotification('Failed to upload image: ' + uploadResult.error, 'error');
-                }
-            } catch (error) {
-                console.error('Error uploading image:', error);
-                showNotification('Error uploading image', 'error');
+    if (files.length === 0) return;
+    
+    // Show progress container
+    let progressContainer = document.getElementById('edit-photo-upload-progress');
+    if (!progressContainer) {
+        progressContainer = document.createElement('div');
+        progressContainer.id = 'edit-photo-upload-progress';
+        progressContainer.style.cssText = 'margin-top: 1rem; padding: 1rem; background: #f9fafb; border-radius: 8px;';
+        previewGrid.parentNode.insertBefore(progressContainer, previewGrid.nextSibling);
+    }
+    progressContainer.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Uploading ${files.length} photo(s)...</span>
+        </div>
+        <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+            <div id="edit-photo-upload-progress-bar" style="background: #10b981; height: 100%; width: 0%; transition: width 0.3s;"></div>
+        </div>
+        <div id="edit-photo-upload-status" style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;"></div>
+    `;
+    
+    let uploadedCount = 0;
+    const totalFiles = files.filter(f => f.type.startsWith('image/')).length;
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) continue;
+        
+        try {
+            // Update status
+            const statusEl = document.getElementById('edit-photo-upload-status');
+            if (statusEl) {
+                statusEl.textContent = `Uploading ${i + 1} of ${totalFiles}: ${file.name}`;
             }
+            
+            // Upload to server first
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            const uploadResponse = await fetch('/api/upload-image', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const uploadResult = await uploadResponse.json();
+            
+            if (uploadResult.success) {
+                // Add the server URL to the photos array
+                editUploadedPhotos.push(uploadResult.imageUrl);
+                uploadedCount++;
+                
+                // Update progress
+                const progress = (uploadedCount / totalFiles) * 100;
+                const progressBar = document.getElementById('edit-photo-upload-progress-bar');
+                if (progressBar) {
+                    progressBar.style.width = progress + '%';
+                }
+                
+                updateEditPhotoPreview();
+            } else {
+                showNotification('Failed to upload image: ' + uploadResult.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            showNotification(`Error uploading ${file.name}`, 'error');
         }
     }
     
+    // Hide progress after a delay
+    setTimeout(() => {
+        if (progressContainer) {
+            progressContainer.style.opacity = '0';
+            setTimeout(() => {
+                if (progressContainer && progressContainer.parentNode) {
+                    progressContainer.remove();
+                }
+            }, 300);
+        }
+    }, 1000);
+    
     // Clear the input for next selection
     input.value = '';
+    
+    if (uploadedCount > 0) {
+        showNotification(`Successfully uploaded ${uploadedCount} photo(s)`, 'success');
+    }
 }
 
 // Remove uploaded photo from edit modal
@@ -1666,9 +1793,133 @@ function updateStats() {
         material.qty > 0 && material.listingType === 'resale'
     ).length;
     
-    document.getElementById('total-items').textContent = formatIndianNumber(totalItems);
-    document.getElementById('total-value').textContent = formatIndianCurrency(totalValue);
-    document.getElementById('active-listings').textContent = activeListings;
+    const totalItemsEl = document.getElementById('total-items');
+    const totalValueEl = document.getElementById('total-value');
+    const activeListingsEl = document.getElementById('active-listings');
+    
+    if (totalItemsEl) totalItemsEl.textContent = formatIndianNumber(totalItems);
+    if (totalValueEl) totalValueEl.textContent = formatIndianCurrency(totalValue);
+    if (activeListingsEl) activeListingsEl.textContent = activeListings;
+    
+    // Update charts
+    loadDashboardCharts();
+}
+
+// Load dashboard charts
+function loadDashboardCharts() {
+    const statsContainer = document.getElementById('dashboard-stats');
+    if (!statsContainer) return;
+    
+    // Add charts section if it doesn't exist
+    let chartsSection = document.getElementById('charts-section');
+    if (!chartsSection) {
+        chartsSection = document.createElement('div');
+        chartsSection.id = 'charts-section';
+        chartsSection.style.cssText = 'margin-top: 2rem; padding: 1.5rem; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);';
+        statsContainer.parentNode.insertBefore(chartsSection, statsContainer.nextSibling);
+    }
+    
+    // Get inventory data for charts
+    const inventory = materials || [];
+    if (inventory.length === 0) {
+        chartsSection.style.display = 'none';
+        return;
+    }
+    
+    chartsSection.style.display = 'block';
+    const categories = {};
+    const priceRanges = { '0-1000': 0, '1000-5000': 0, '5000-10000': 0, '10000+': 0 };
+    const monthlyData = {};
+    
+    inventory.forEach(item => {
+        // Category distribution
+        const cat = item.category || 'Other';
+        categories[cat] = (categories[cat] || 0) + 1;
+        
+        // Price range distribution
+        const price = parseFloat(item.priceToday || 0);
+        if (price < 1000) priceRanges['0-1000']++;
+        else if (price < 5000) priceRanges['1000-5000']++;
+        else if (price < 10000) priceRanges['5000-10000']++;
+        else priceRanges['10000+']++;
+        
+        // Monthly data (if createdAt exists)
+        if (item.createdAt) {
+            const month = new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            monthlyData[month] = (monthlyData[month] || 0) + 1;
+        }
+    });
+    
+    // Create simple bar charts using CSS
+    chartsSection.innerHTML = `
+        <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fas fa-chart-bar"></i> Analytics
+        </h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+            <div>
+                <h4 style="margin-bottom: 1rem; font-size: 1rem; color: #6b7280;">Category Distribution</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    ${Object.entries(categories).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([cat, count]) => {
+                        const max = Math.max(...Object.values(categories));
+                        const percentage = max > 0 ? (count / max) * 100 : 0;
+                        return `
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.875rem;">
+                                    <span>${cat}</span>
+                                    <span style="font-weight: 600;">${count}</span>
+                                </div>
+                                <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+                                    <div style="background: linear-gradient(90deg, #10b981 0%, #059669 100%); height: 100%; width: ${percentage}%; transition: width 0.3s;"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+            <div>
+                <h4 style="margin-bottom: 1rem; font-size: 1rem; color: #6b7280;">Price Range Distribution</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    ${Object.entries(priceRanges).map(([range, count]) => {
+                        const max = Math.max(...Object.values(priceRanges));
+                        const percentage = max > 0 ? (count / max) * 100 : 0;
+                        return `
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.875rem;">
+                                    <span>₹${range}</span>
+                                    <span style="font-weight: 600;">${count}</span>
+                                </div>
+                                <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+                                    <div style="background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%); height: 100%; width: ${percentage}%; transition: width 0.3s;"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+            ${Object.keys(monthlyData).length > 0 ? `
+            <div>
+                <h4 style="margin-bottom: 1rem; font-size: 1rem; color: #6b7280;">Items Added Over Time</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    ${Object.entries(monthlyData).sort((a, b) => new Date(a[0]) - new Date(b[0])).slice(-6).map(([month, count]) => {
+                        const max = Math.max(...Object.values(monthlyData));
+                        const percentage = max > 0 ? (count / max) * 100 : 0;
+                        return `
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.875rem;">
+                                    <span>${month}</span>
+                                    <span style="font-weight: 600;">${count}</span>
+                                </div>
+                                <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+                                    <div style="background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%); height: 100%; width: ${percentage}%; transition: width 0.3s;"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+            ` : ''}
+        </div>
+    `;
 }
 
 // Setup event listeners
@@ -1772,6 +2023,8 @@ function setupEventListeners() {
     const manualForm = document.getElementById('manual-item-form');
     if (manualForm) {
         manualForm.addEventListener('submit', addManualItem);
+        // Setup auto-save for manual item form
+        setupAutoSave('manual-item-form', 'greenscore-manual-item-draft');
     }
     
     const projectForm = document.getElementById('project-form');
@@ -2367,16 +2620,54 @@ async function handleListingAction(e) {
 async function addManualItem(e) {
     e.preventDefault();
     
+    const form = e.target;
+    
+    // Validate form fields
+    const validators = {
+        'item-material': [
+            (v) => validateRequired(v, 'Material name')
+        ],
+        'item-qty': [
+            (v) => validateRequired(v, 'Quantity'),
+            (v) => validateNumberRange(v, 1, 999999, 'Quantity')
+        ],
+        'item-price-today': [
+            (v) => validateRequired(v, 'Selling price'),
+            (v) => validateNumberRange(v, 0, 999999999, 'Selling price')
+        ]
+    };
+    
+    if (!validateForm(form, validators)) {
+        showNotification('Please fix the errors in the form', 'error');
+        return;
+    }
+    
     const currentProject = document.getElementById('current-project');
     const selectedProject = currentProject.value;
     
     if (!selectedProject || selectedProject === 'all-projects') {
+        showFieldError(currentProject, 'Please select a project');
         showNotification('Please select a specific project to add items', 'error');
         return;
     }
     
-    const latitude = document.getElementById('item-latitude').value ? parseFloat(document.getElementById('item-latitude').value) : null;
-    const longitude = document.getElementById('item-longitude').value ? parseFloat(document.getElementById('item-longitude').value) : null;
+    // Validate latitude/longitude if provided
+    const latInput = document.getElementById('item-latitude');
+    const lngInput = document.getElementById('item-longitude');
+    const latitude = latInput.value ? parseFloat(latInput.value) : null;
+    const longitude = lngInput.value ? parseFloat(lngInput.value) : null;
+    
+    if (latitude !== null && (latitude < -90 || latitude > 90)) {
+        showFieldError(latInput, 'Latitude must be between -90 and 90');
+        showNotification('Invalid latitude value', 'error');
+        return;
+    }
+    
+    if (longitude !== null && (longitude < -180 || longitude > 180)) {
+        showFieldError(lngInput, 'Longitude must be between -180 and 180');
+        showNotification('Invalid longitude value', 'error');
+        return;
+    }
     
     const material = {
         sellerId: currentUser.id,
@@ -2416,9 +2707,14 @@ async function addManualItem(e) {
         
         if (result.success) {
             showNotification('Item added successfully', 'success');
+            
+            // Track price history
+            trackPriceHistory(material.material, material.priceToday, material.projectId);
+            
             e.target.reset();
             uploadedPhotos = []; // Clear uploaded photos
             updatePhotoPreview(); // Clear preview
+            clearAutoSave('greenscore-manual-item-draft'); // Clear auto-saved data
             loadInventory(); // Refresh inventory
         } else {
             showNotification('Error adding item', 'error');
@@ -3212,36 +3508,98 @@ function triggerPhotoUpload() {
     document.getElementById('photo-input').click();
 }
 
-// Handle photo file uploads
+// Handle photo file uploads with progress
 async function handlePhotoFiles(input) {
     const files = Array.from(input.files);
     const previewGrid = document.getElementById('photo-preview-grid');
     
-    for (const file of files) {
-        if (file.type.startsWith('image/')) {
+    if (files.length === 0) return;
+    
+    // Show progress container
+    let progressContainer = document.getElementById('photo-upload-progress');
+    if (!progressContainer) {
+        progressContainer = document.createElement('div');
+        progressContainer.id = 'photo-upload-progress';
+        progressContainer.style.cssText = 'margin-top: 1rem; padding: 1rem; background: #f9fafb; border-radius: 8px;';
+        previewGrid.parentNode.insertBefore(progressContainer, previewGrid.nextSibling);
+    }
+    progressContainer.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Uploading ${files.length} photo(s)...</span>
+        </div>
+        <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+            <div id="photo-upload-progress-bar" style="background: #10b981; height: 100%; width: 0%; transition: width 0.3s;"></div>
+        </div>
+        <div id="photo-upload-status" style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;"></div>
+    `;
+    
+    let uploadedCount = 0;
+    const totalFiles = files.filter(f => f.type.startsWith('image/')).length;
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) continue;
+        
+        try {
+            // Update status
+            const statusEl = document.getElementById('photo-upload-status');
+            if (statusEl) {
+                statusEl.textContent = `Processing ${i + 1} of ${totalFiles}: ${file.name}`;
+            }
+            
             // Convert to base64 for preview and storage
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const photoData = e.target.result;
-                uploadedPhotos.push(photoData);
-                
-                // Add preview
-                const preview = document.createElement('div');
-                preview.className = 'photo-preview-item';
-                preview.innerHTML = `
-                    <img src="${photoData}" alt="Preview">
-                    <button type="button" class="remove-photo" onclick="removeUploadedPhoto(${uploadedPhotos.length - 1})">
-                        <i class="fas fa-times"></i>
-                    </button>
-                `;
-                previewGrid.appendChild(preview);
-            };
-            reader.readAsDataURL(file);
+            const photoData = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            
+            uploadedPhotos.push(photoData);
+            uploadedCount++;
+            
+            // Update progress
+            const progress = (uploadedCount / totalFiles) * 100;
+            const progressBar = document.getElementById('photo-upload-progress-bar');
+            if (progressBar) {
+                progressBar.style.width = progress + '%';
+            }
+            
+            // Add preview
+            const preview = document.createElement('div');
+            preview.className = 'photo-preview-item';
+            preview.innerHTML = `
+                <img src="${photoData}" alt="Preview" loading="lazy">
+                <button type="button" class="remove-photo" onclick="removeUploadedPhoto(${uploadedPhotos.length - 1})">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            previewGrid.appendChild(preview);
+        } catch (error) {
+            console.error('Error processing photo:', error);
+            showNotification(`Error processing ${file.name}`, 'error');
         }
     }
     
+    // Hide progress after a delay
+    setTimeout(() => {
+        if (progressContainer) {
+            progressContainer.style.opacity = '0';
+            setTimeout(() => {
+                if (progressContainer && progressContainer.parentNode) {
+                    progressContainer.remove();
+                }
+            }, 300);
+        }
+    }, 1000);
+    
     // Clear the input for next selection
     input.value = '';
+    
+    if (uploadedCount > 0) {
+        showNotification(`Successfully uploaded ${uploadedCount} photo(s)`, 'success');
+    }
 }
 
 // Remove uploaded photo
@@ -3270,6 +3628,401 @@ function updatePhotoPreview() {
 
 // Removed URL input functions - no longer needed
 
+// Bulk selection functions
+function toggleSelectAllItems(checked) {
+    const checkboxes = document.querySelectorAll('.item-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = checked;
+        const itemId = cb.value;
+        if (checked) {
+            selectedInventoryItems.add(itemId);
+        } else {
+            selectedInventoryItems.delete(itemId);
+        }
+    });
+    updateBulkActionButton();
+}
+
+function toggleSelectInventoryItem(itemId, checked) {
+    if (checked) {
+        selectedInventoryItems.add(itemId);
+    } else {
+        selectedInventoryItems.delete(itemId);
+    }
+    updateBulkActionButton();
+}
+
+function updateBulkActionButton() {
+    const bulkBtn = document.getElementById('bulk-action-btn');
+    const countSpan = document.getElementById('selected-count');
+    if (bulkBtn) {
+        bulkBtn.disabled = selectedInventoryItems.size === 0;
+        if (countSpan) {
+            countSpan.textContent = selectedInventoryItems.size;
+        }
+    }
+    
+    // Update select all checkbox
+    const selectAll = document.getElementById('select-all-items');
+    if (selectAll) {
+        const checkboxes = document.querySelectorAll('.item-checkbox');
+        const allChecked = checkboxes.length > 0 && Array.from(checkboxes).every(cb => cb.checked);
+        selectAll.checked = allChecked;
+    }
+}
+
+function showBulkActionsModal() {
+    if (selectedInventoryItems.size === 0) {
+        showNotification('Please select items first', 'warning');
+        return;
+    }
+    
+    // Create or show bulk actions modal
+    let modal = document.getElementById('bulk-actions-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'bulk-actions-modal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h3>Bulk Actions</h3>
+                    <button onclick="closeBulkActionsModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>${selectedInventoryItems.size} items selected</strong></p>
+                    <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;">
+                        <button class="btn btn-primary" onclick="bulkUpdateListingType('resale')">
+                            <i class="fas fa-tag"></i> Mark as For Resale
+                        </button>
+                        <button class="btn btn-primary" onclick="bulkUpdateListingType('sold')">
+                            <i class="fas fa-check-circle"></i> Mark as Sold
+                        </button>
+                        <button class="btn btn-danger" onclick="bulkDeleteInventory()">
+                            <i class="fas fa-trash"></i> Delete Selected Items
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    } else {
+        // Update count in modal
+        const countText = modal.querySelector('.modal-body p strong');
+        if (countText) {
+            countText.textContent = `${selectedInventoryItems.size} items selected`;
+        }
+    }
+    modal.classList.add('show');
+}
+
+function closeBulkActionsModal() {
+    const modal = document.getElementById('bulk-actions-modal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+async function bulkDeleteInventory() {
+    if (selectedInventoryItems.size === 0) return;
+    
+    const confirmed = await showConfirmDialog(
+        `Are you sure you want to delete ${selectedInventoryItems.size} items? This action cannot be undone.`,
+        'Bulk Delete',
+        'Delete All',
+        'Cancel'
+    );
+    if (!confirmed) return;
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const itemId of selectedInventoryItems) {
+        try {
+            const response = await fetch(`/api/materials/${itemId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    sellerId: currentUser.id
+                })
+            });
+            
+            if (response.ok) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        } catch (error) {
+            failCount++;
+            console.error(`Error deleting item ${itemId}:`, error);
+        }
+    }
+    
+    selectedInventoryItems.clear();
+    updateBulkActionButton();
+    closeBulkActionsModal();
+    loadInventory();
+    
+    if (failCount === 0) {
+        showNotification(`Successfully deleted ${successCount} items`, 'success');
+    } else {
+        showNotification(`Deleted ${successCount} items. ${failCount} failed.`, 'warning');
+    }
+}
+
+async function bulkUpdateListingType(listingType) {
+    if (selectedInventoryItems.size === 0) return;
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const itemId of selectedInventoryItems) {
+        try {
+            const response = await fetch(`/api/materials/${itemId}/listing-type`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ listingType })
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        } catch (error) {
+            failCount++;
+            console.error(`Error updating item ${itemId}:`, error);
+        }
+    }
+    
+    selectedInventoryItems.clear();
+    updateBulkActionButton();
+    closeBulkActionsModal();
+    loadInventory();
+    
+    if (failCount === 0) {
+        showNotification(`Successfully updated ${successCount} items to ${getStatusText(listingType)}`, 'success');
+    } else {
+        showNotification(`Updated ${successCount} items. ${failCount} failed.`, 'warning');
+    }
+}
+
+// Material templates
+function loadMaterialTemplates() {
+    const saved = localStorage.getItem('greenscore-material-templates');
+    if (saved) {
+        materialTemplates = JSON.parse(saved);
+    }
+}
+
+function saveMaterialTemplate() {
+    const form = document.getElementById('manual-item-form');
+    if (!form) return;
+    
+    const name = prompt('Enter a name for this template:');
+    if (!name) return;
+    
+    const template = {
+        id: Date.now().toString(),
+        name: name,
+        material: document.getElementById('item-material').value,
+        brand: document.getElementById('item-brand').value,
+        category: document.getElementById('item-category').value,
+        unit: document.getElementById('item-unit').value,
+        condition: document.getElementById('item-condition').value,
+        specs: document.getElementById('item-specs').value,
+        createdAt: new Date().toISOString()
+    };
+    
+    materialTemplates.push(template);
+    localStorage.setItem('greenscore-material-templates', JSON.stringify(materialTemplates));
+    showNotification('Template saved!', 'success');
+}
+
+function showMaterialTemplates() {
+    let modal = document.getElementById('templates-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'templates-modal';
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+    }
+    
+    if (materialTemplates.length === 0) {
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-file-alt"></i> Material Templates</h3>
+                    <button onclick="document.getElementById('templates-modal').classList.remove('show')" 
+                            style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p style="text-align: center; color: #6b7280; padding: 2rem;">No templates saved yet</p>
+                    <p style="text-align: center; color: #9ca3af; font-size: 0.875rem;">Fill out the form and click "Save Template" to create one</p>
+                </div>
+            </div>
+        `;
+    } else {
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-file-alt"></i> Material Templates</h3>
+                    <button onclick="document.getElementById('templates-modal').classList.remove('show')" 
+                            style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        ${materialTemplates.map(template => `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #f9fafb; border-radius: 8px;">
+                                <div>
+                                    <strong>${template.name}</strong>
+                                    <div style="font-size: 0.875rem; color: #6b7280; margin-top: 0.25rem;">
+                                        ${template.material}${template.brand ? ` - ${template.brand}` : ''} | ${template.category || 'Other'}
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button onclick="applyTemplate('${template.id}'); document.getElementById('templates-modal').classList.remove('show');" 
+                                            class="btn btn-primary" style="padding: 0.5rem 1rem;">
+                                        <i class="fas fa-check"></i> Use
+                                    </button>
+                                    <button onclick="deleteTemplate('${template.id}')" 
+                                            class="btn btn-danger" style="padding: 0.5rem;">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    modal.classList.add('show');
+}
+
+function applyTemplate(templateId) {
+    const template = materialTemplates.find(t => t.id === templateId);
+    if (!template) return;
+    
+    document.getElementById('item-material').value = template.material || '';
+    document.getElementById('item-brand').value = template.brand || '';
+    document.getElementById('item-category').value = template.category || '';
+    document.getElementById('item-unit').value = template.unit || 'pcs';
+    document.getElementById('item-condition').value = template.condition || 'good';
+    document.getElementById('item-specs').value = template.specs || '';
+    
+    showNotification(`Template "${template.name}" applied!`, 'success');
+}
+
+function deleteTemplate(templateId) {
+    materialTemplates = materialTemplates.filter(t => t.id !== templateId);
+    localStorage.setItem('greenscore-material-templates', JSON.stringify(materialTemplates));
+    showNotification('Template deleted', 'info');
+    showMaterialTemplates(); // Refresh modal
+}
+
+function saveAsTemplate() {
+    saveMaterialTemplate();
+}
+
+// Price history tracking
+function loadPriceHistory() {
+    const saved = localStorage.getItem('greenscore-price-history');
+    if (saved) {
+        priceHistory = JSON.parse(saved);
+    }
+}
+
+function trackPriceHistory(materialName, price, projectId) {
+    const key = `${materialName}_${projectId || 'default'}`;
+    if (!priceHistory[key]) {
+        priceHistory[key] = [];
+    }
+    
+    priceHistory[key].push({
+        price: price,
+        date: new Date().toISOString()
+    });
+    
+    // Keep only last 50 entries per material
+    if (priceHistory[key].length > 50) {
+        priceHistory[key] = priceHistory[key].slice(-50);
+    }
+    
+    localStorage.setItem('greenscore-price-history', JSON.stringify(priceHistory));
+}
+
+function getPriceHistory(materialName, projectId) {
+    const key = `${materialName}_${projectId || 'default'}`;
+    return priceHistory[key] || [];
+}
+
+function showPriceHistory(materialName, projectId) {
+    const history = getPriceHistory(materialName, projectId);
+    if (history.length === 0) {
+        showNotification('No price history available', 'info');
+        return;
+    }
+    
+    let modal = document.getElementById('price-history-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'price-history-modal';
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+    }
+    
+    // Sort by date (newest first)
+    const sortedHistory = [...history].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-chart-line"></i> Price History: ${materialName}</h3>
+                <button onclick="document.getElementById('price-history-modal').classList.remove('show')" 
+                        style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #f9fafb;">
+                                <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Date</th>
+                                <th style="padding: 0.75rem; text-align: right; border-bottom: 2px solid #e5e7eb;">Price</th>
+                                <th style="padding: 0.75rem; text-align: right; border-bottom: 2px solid #e5e7eb;">Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${sortedHistory.map((entry, index) => {
+                                const prevPrice = index < sortedHistory.length - 1 ? sortedHistory[index + 1].price : entry.price;
+                                const change = entry.price - prevPrice;
+                                const changePercent = prevPrice > 0 ? ((change / prevPrice) * 100).toFixed(1) : 0;
+                                const changeColor = change > 0 ? '#ef4444' : change < 0 ? '#10b981' : '#6b7280';
+                                
+                                return `
+                                    <tr style="border-bottom: 1px solid #e5e7eb;">
+                                        <td style="padding: 0.75rem;">${new Date(entry.date).toLocaleDateString('en-IN')}</td>
+                                        <td style="padding: 0.75rem; text-align: right; font-weight: 600;">₹${entry.price.toLocaleString('en-IN')}</td>
+                                        <td style="padding: 0.75rem; text-align: right; color: ${changeColor};">
+                                            ${change !== 0 ? `${change > 0 ? '+' : ''}${change.toFixed(2)} (${changePercent}%)` : '-'}
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    modal.classList.add('show');
+}
+
 // Make functions globally available
 window.showTab = showTab;
 window.showOrderSubtab = showOrderSubtab;
@@ -3279,6 +4032,14 @@ window.editMaterial = editMaterial;
 window.closeEditModal = closeEditModal;
 window.cancelEdit = cancelEdit;
 window.setView = setView;
+window.clearInventoryFilters = clearInventoryFilters;
+window.exportInventory = exportInventory;
+window.toggleSelectAllItems = toggleSelectAllItems;
+window.toggleSelectInventoryItem = toggleSelectInventoryItem;
+window.showBulkActionsModal = showBulkActionsModal;
+window.closeBulkActionsModal = closeBulkActionsModal;
+window.bulkDeleteInventory = bulkDeleteInventory;
+window.bulkUpdateListingType = bulkUpdateListingType;
 window.toggleDropdown = toggleDropdown;
 window.updateListingType = updateListingType;
 window.showListingActionModal = showListingActionModal;
@@ -4831,3 +5592,4 @@ window.exportTransactionHistory = exportTransactionHistory;
 window.openProfilePage = openProfilePage;
 window.closeProfilePage = closeProfilePage;
 window.switchProfileTab = switchProfileTab;
+

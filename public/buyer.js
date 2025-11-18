@@ -6,6 +6,7 @@ let categories = [];
 let cart = [];
 let filteredMaterials = [];
 let notifications = [];
+let favorites = []; // Favorites/wishlist
 // Cache for parsed photos to avoid repeated JSON.parse() calls
 const photoCache = new Map();
 
@@ -36,10 +37,24 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('Error loading initial data:', error);
     });
     
-    // Load non-critical data separately (cart, notifications)
+    // Load non-critical data separately (cart, notifications, favorites)
     loadCart();
+    loadFavorites();
+    loadSavedSearches();
+    updateComparisonDisplay(); // Initialize comparison badge
     if (currentUser) {
         loadNotifications();
+    }
+    
+    // Show distance sort option when in map view
+    const distanceOption = document.getElementById('distance-sort-option');
+    if (distanceOption) {
+        const checkMapView = () => {
+            distanceOption.style.display = isMapView ? 'block' : 'none';
+        };
+        checkMapView();
+        // Check periodically
+        setInterval(checkMapView, 1000);
     }
     
     // Set up auto-refresh system
@@ -415,35 +430,18 @@ async function loadMaterials() {
     let loadingElement = null;
     
     try {
-        // Show loading indicator with progress
+        // Show skeleton loader
         if (productsGrid) {
-            productsGrid.innerHTML = `
-                <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">
-                    <div class="loading-spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #10b981; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
-                    <div style="width: 200px; background: #e5e7eb; border-radius: 10px; overflow: hidden; margin: 0 auto 1rem;">
-                        <div id="materials-progress-bar" style="width: 0%; background: linear-gradient(90deg, #10b981 0%, #059669 100%); height: 24px; transition: width 0.3s;"></div>
-                    </div>
-                    <p id="materials-loading-text" style="color: #6b7280; font-size: 0.875rem;">Loading materials... 0%</p>
-                </div>
-            `;
-            loadingElement = productsGrid.querySelector('div');
+            showSkeletonLoader('products-grid', 'card', 12);
         }
-        
-        updateMaterialsProgress(10, 'Connecting to server...');
         
         const response = await fetch('/api/materials');
         if (!response.ok) throw new Error('Failed to load materials');
         
-        updateMaterialsProgress(40, 'Receiving data...');
-        
         const data = await response.json();
         materials = Array.isArray(data) ? data : [];
         
-        updateMaterialsProgress(70, 'Processing materials...');
-        
         filteredMaterials = [...materials];
-        
-        updateMaterialsProgress(90, 'Rendering...');
         
         // Populate filters and display immediately (displayMaterials handles empty state)
         populateProjectFilters();
@@ -456,20 +454,6 @@ async function loadMaterials() {
         if (isMapView && map) {
             displayMaterialsOnMap(filteredMaterials);
         }
-        
-        updateMaterialsProgress(100, 'Complete!');
-        
-        // Always clear loading state after displayMaterials runs (handles both empty and non-empty)
-        setTimeout(() => {
-            // displayMaterials() replaces the loading HTML, but ensure we clear any remaining loading elements
-            const productsGrid = document.getElementById('products-grid');
-            if (productsGrid) {
-                const remainingLoading = productsGrid.querySelector('.loading-spinner');
-                if (remainingLoading && remainingLoading.parentNode) {
-                    remainingLoading.parentNode.remove();
-                }
-            }
-        }, 100);
     } catch (error) {
         console.error('Error loading materials:', error);
         const productsGrid = document.getElementById('products-grid');
@@ -649,7 +633,11 @@ function parsePhoto(photoString) {
     return photoUrl;
 }
 
-// Display materials in grid
+// Pagination state
+let currentPage = 1;
+const itemsPerPage = 20; // Show 20 items per page
+
+// Display materials in grid with pagination
 function displayMaterials() {
     const productsGrid = document.getElementById('products-grid');
     const productsTitle = document.getElementById('products-title');
@@ -677,15 +665,25 @@ function displayMaterials() {
         if (productsCount) {
             productsCount.textContent = '0 items found';
         }
+        // Remove pagination if exists
+        const pagination = productsGrid?.parentElement?.querySelector('.pagination');
+        if (pagination) pagination.remove();
         return;
     }
     
-    productsCount.textContent = `${filteredMaterials.length} items found`;
+    // Calculate pagination
+    const totalPages = Math.ceil(filteredMaterials.length / itemsPerPage);
+    currentPage = Math.min(currentPage, totalPages) || 1;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedMaterials = filteredMaterials.slice(startIndex, endIndex);
+    
+    productsCount.textContent = `${filteredMaterials.length} items found${totalPages > 1 ? ` (Page ${currentPage} of ${totalPages})` : ''}`;
     
     // Check if current user is admin
     const isAdmin = currentUser && currentUser.userType === 'admin';
     
-    productsGrid.innerHTML = filteredMaterials.map(material => {
+    productsGrid.innerHTML = paginatedMaterials.map(material => {
         // Parse photo with caching for performance
         const photoUrl = parsePhoto(material.photo);
         
@@ -703,11 +701,7 @@ function displayMaterials() {
                 </div>
             ` : '';
         const imageHtml = photoUrl ? 
-            `<img src="${photoUrl}" alt="${material.material}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-             <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
-                 <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem;"></i>
-                 <span>No Image</span>
-             </div>` :
+            `<img src="${photoUrl}" alt="${material.material}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` :
             `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
                  <i class="fas fa-image" style="font-size:2rem; margin-bottom:0.5rem;"></i>
                  <span>No Image</span>
@@ -715,17 +709,47 @@ function displayMaterials() {
         const brandHtml = material.brand ? `<div class="product-brand">${material.brand}</div>` : '';
         const specsHtml = material.specs && material.specs.trim() ? `<div class="product-specs">${material.specs}</div>` : '';
         const cartButtonHtml = getCartButtonHTML(material);
+        const isFav = isFavorite(material.id);
+        const favoriteButton = `
+            <button onclick="event.stopPropagation(); toggleFavorite('${material.id}')" 
+                    aria-label="${isFav ? 'Remove from favorites' : 'Add to favorites'}"
+                    style="position: absolute; top: 10px; right: 10px; background: ${isFav ? 'rgba(239, 68, 68, 0.9)' : 'rgba(0, 0, 0, 0.5)'}; color: white; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 5; transition: all 0.2s;"
+                    title="${isFav ? 'Remove from favorites' : 'Add to favorites'}"
+                    onmouseenter="this.style.transform='scale(1.1)'"
+                    onmouseleave="this.style.transform='scale(1)'">
+                <i class="fas fa-heart" aria-hidden="true"></i>
+            </button>
+        `;
+        const quickViewBtn = `
+            <button onclick="event.stopPropagation(); quickViewMaterial('${material.id}')" 
+                    aria-label="Quick view ${material.material}"
+                    style="position: absolute; bottom: 10px; left: 10px; background: rgba(59, 130, 246, 0.9); color: white; border: none; border-radius: 6px; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.75rem; z-index: 5; display: flex; align-items: center; gap: 0.25rem;"
+                    title="Quick View">
+                <i class="fas fa-eye" aria-hidden="true"></i> Quick View
+            </button>
+        `;
+        const compareBtn = `
+            <button onclick="event.stopPropagation(); compareMaterials('${material.id}')" 
+                    aria-label="Add ${material.material} to comparison"
+                    style="position: absolute; bottom: 10px; right: 10px; background: rgba(16, 185, 129, 0.9); color: white; border: none; border-radius: 6px; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.75rem; z-index: 5; display: flex; align-items: center; gap: 0.25rem;"
+                    title="Add to Comparison">
+                <i class="fas fa-balance-scale" aria-hidden="true"></i> Compare
+            </button>
+        `;
         
         return `
-        <div class="product-card" onclick="${onClickHandler}" style="position: relative; ${cardStyle}">
+        <div class="product-card" onclick="${onClickHandler}" style="position: relative; ${cardStyle}" role="article" aria-label="${material.material}" tabindex="0">
             ${editedBadge}
             ${adminDeleteBtn}
-            <div class="product-image">
+            ${favoriteButton}
+            <div class="product-image" role="img" aria-label="Material image">
                 ${imageHtml}
+                ${quickViewBtn}
+                ${compareBtn}
             </div>
             <div class="product-info">
                 <div class="product-header">
-                    <span class="product-category">${material.category || 'Other'}</span>
+                    <span class="product-category" aria-label="Category: ${material.category || 'Other'}">${material.category || 'Other'}</span>
                 </div>
                 <h3>${material.material}</h3>
                 ${brandHtml}
@@ -742,6 +766,28 @@ function displayMaterials() {
         </div>
     `;
     }).join('');
+    
+    // Add pagination controls if more than one page
+    if (totalPages > 1) {
+        // Set up page change handler
+        window.currentPage = currentPage;
+        window.onPageChange = (newPage) => {
+            currentPage = newPage;
+            displayMaterials();
+            // Scroll to top of products section
+            productsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+        
+        // Create pagination controls
+        const paginationContainer = document.getElementById('products-section');
+        if (paginationContainer) {
+            createPaginationControls(currentPage, totalPages, 'products-section');
+        }
+    } else {
+        // Remove pagination if exists
+        const pagination = productsGrid.parentElement?.querySelector('.pagination');
+        if (pagination) pagination.remove();
+    }
 }
 
 // Get cart button HTML for modal view (doesn't close modal)
@@ -1017,15 +1063,70 @@ function filterMaterials() {
     }
 }
 
+// Clear all filters
+function clearFilters() {
+    document.getElementById('search-input').value = '';
+    document.getElementById('category-filter').value = 'all';
+    document.getElementById('condition-filter').value = 'all';
+    document.getElementById('project-filter').value = 'all';
+    document.getElementById('location-filter').value = 'all';
+    document.getElementById('sort-filter').value = 'newest';
+    
+    // Reset to page 1 when filters are cleared
+    currentPage = 1;
+    // Reset price range
+    const priceMinInput = document.getElementById('price-range-min');
+    const priceMaxInput = document.getElementById('price-range-max');
+    if (priceMinInput && priceMaxInput) {
+        priceMinInput.value = 0;
+        priceMaxInput.value = 1000000;
+        updatePriceRange();
+    }
+    filterMaterials();
+    showNotification('Filters cleared', 'success');
+}
+
+// Update price range display
+function updatePriceRange() {
+    const min = parseInt(document.getElementById('price-range-min')?.value || 0);
+    const max = parseInt(document.getElementById('price-range-max')?.value || 1000000);
+    const display = document.getElementById('price-range-display');
+    if (display) {
+        display.textContent = `₹${min.toLocaleString('en-IN')} - ₹${max.toLocaleString('en-IN')}`;
+    }
+    filterMaterials();
+}
+
 // Setup event listeners
 function setupEventListeners() {
     // Search and filters
-    document.getElementById('search-input').addEventListener('input', filterMaterials);
-    document.getElementById('category-filter').addEventListener('change', filterMaterials);
-    document.getElementById('condition-filter').addEventListener('change', filterMaterials);
-    document.getElementById('project-filter').addEventListener('change', filterMaterials);
-    document.getElementById('location-filter').addEventListener('change', filterMaterials);
-    document.getElementById('sort-filter').addEventListener('change', filterMaterials);
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', filterMaterials);
+        // Keyboard navigation for search
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                filterMaterials();
+            }
+        });
+    }
+    
+    document.getElementById('category-filter')?.addEventListener('change', filterMaterials);
+    document.getElementById('condition-filter')?.addEventListener('change', filterMaterials);
+    document.getElementById('project-filter')?.addEventListener('change', filterMaterials);
+    document.getElementById('location-filter')?.addEventListener('change', filterMaterials);
+    document.getElementById('sort-filter')?.addEventListener('change', filterMaterials);
+    
+    // Keyboard navigation for buttons
+    document.querySelectorAll('button, a[role="button"]').forEach(btn => {
+        btn.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                this.click();
+            }
+        });
+    });
     
     // Checkout form
     document.getElementById('checkout-form').addEventListener('submit', placeOrder);
@@ -1676,6 +1777,132 @@ function loadCart() {
         cart = JSON.parse(savedCart);
         updateCartDisplay();
     }
+}
+
+// Favorites/Wishlist functions
+function loadFavorites() {
+    const savedFavorites = localStorage.getItem('greenscore-favorites');
+    if (savedFavorites) {
+        favorites = JSON.parse(savedFavorites);
+        updateFavoritesDisplay();
+    }
+}
+
+function saveFavorites() {
+    localStorage.setItem('greenscore-favorites', JSON.stringify(favorites));
+    updateFavoritesDisplay();
+}
+
+function toggleFavorite(materialId) {
+    const index = favorites.findIndex(f => f.materialId === materialId);
+    if (index > -1) {
+        favorites.splice(index, 1);
+        showNotification('Removed from favorites', 'info');
+    } else {
+        const material = materials.find(m => m.id === materialId);
+        if (material) {
+            favorites.push({
+                materialId: materialId,
+                material: material.material,
+                brand: material.brand,
+                price: material.priceToday,
+                photo: material.photo,
+                addedAt: new Date().toISOString()
+            });
+            showNotification('Added to favorites', 'success');
+        }
+    }
+    saveFavorites();
+    displayMaterials(); // Refresh to update favorite icons
+}
+
+function isFavorite(materialId) {
+    return favorites.some(f => f.materialId === materialId);
+}
+
+function updateFavoritesDisplay() {
+    const badge = document.getElementById('favorites-badge');
+    if (badge) {
+        if (favorites.length > 0) {
+            badge.textContent = favorites.length;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+function toggleFavorites() {
+    const modal = document.getElementById('favorites-modal');
+    if (!modal) {
+        createFavoritesModal();
+    } else {
+        displayFavoritesList(); // Refresh list
+    }
+    document.getElementById('favorites-modal').classList.toggle('show');
+}
+
+function createFavoritesModal() {
+    const modal = document.createElement('div');
+    modal.id = 'favorites-modal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-heart"></i> My Favorites</h2>
+                <button onclick="toggleFavorites()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="favorites-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; max-height: 60vh; overflow-y: auto;">
+                    <!-- Favorites will be loaded here -->
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    displayFavoritesList();
+}
+
+function displayFavoritesList() {
+    const list = document.getElementById('favorites-list');
+    if (!list) return;
+    
+    if (favorites.length === 0) {
+        list.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: #6b7280;">
+                <i class="fas fa-heart" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.3;"></i>
+                <p>No favorites yet</p>
+                <small>Click the heart icon on materials to add them to favorites</small>
+            </div>
+        `;
+        return;
+    }
+    
+    list.innerHTML = favorites.map(fav => {
+        const material = materials.find(m => m.id === fav.materialId);
+        if (!material) return '';
+        
+        const photoUrl = parsePhoto(material.photo || fav.photo);
+        return `
+            <div class="product-card" onclick="showProductModal('${fav.materialId}')" style="cursor: pointer;">
+                <div class="product-image">
+                    ${photoUrl ? `<img src="${photoUrl}" alt="${fav.material}">` : 
+                        `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                            <i class="fas fa-image" style="font-size:2rem;"></i>
+                        </div>`}
+                    <button onclick="event.stopPropagation(); toggleFavorite('${fav.materialId}')" 
+                            style="position: absolute; top: 10px; right: 10px; background: rgba(239, 68, 68, 0.9); color: white; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-heart"></i>
+                    </button>
+                </div>
+                <div class="product-info">
+                    <h3>${fav.material}</h3>
+                    ${fav.brand ? `<div class="product-brand">${fav.brand}</div>` : ''}
+                    <div class="product-price">₹${fav.price || 0}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 // Show notification
@@ -2680,8 +2907,74 @@ async function displayMaterialsOnMap(materialsToShow) {
     }
 }
 
-// Restore view mode from localStorage
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl+F or Cmd+F: Focus search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !e.shiftKey) {
+        const searchInput = document.getElementById('search-input');
+        if (searchInput && document.activeElement !== searchInput) {
+            e.preventDefault();
+            searchInput.focus();
+            searchInput.select();
+        }
+    }
+    
+    // Ctrl+R or Cmd+R: Clear filters (prevent default browser refresh)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r' && !e.shiftKey) {
+        const searchInput = document.getElementById('search-input');
+        if (searchInput && document.activeElement === searchInput) {
+            e.preventDefault();
+            clearFilters();
+        }
+    }
+    
+    // Esc: Close modals
+    if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('.modal.show, .modal-content.show');
+        modals.forEach(modal => {
+            if (modal.classList.contains('modal')) {
+                modal.classList.remove('show');
+            } else {
+                modal.closest('.modal')?.classList.remove('show');
+            }
+        });
+    }
+    
+    // Ctrl+S or Cmd+S: Save forms (prevent default browser save)
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        const activeForm = document.activeElement?.closest('form');
+        if (activeForm && activeForm.querySelector('button[type="submit"]')) {
+            e.preventDefault();
+            activeForm.querySelector('button[type="submit"]').click();
+        }
+    }
+});
+
+// Dark mode toggle
+function toggleDarkMode() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('greenscore-theme', newTheme);
+    
+    // Update icon
+    const icon = document.getElementById('dark-mode-icon');
+    if (icon) {
+        icon.className = newTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+    }
+}
+
+// Restore theme from localStorage
 document.addEventListener('DOMContentLoaded', function() {
+    const savedTheme = localStorage.getItem('greenscore-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    
+    // Update icon
+    const icon = document.getElementById('dark-mode-icon');
+    if (icon) {
+        icon.className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+    }
+    
     const savedViewMode = localStorage.getItem('greenscore-view-mode');
     if (savedViewMode === 'map') {
         // Wait a bit for DOM to be ready
@@ -2708,6 +3001,467 @@ window.openProfilePage = openProfilePage;
 window.closeProfilePage = closeProfilePage;
 window.switchProfileTab = switchProfileTab;
 window.toggleMapView = toggleMapView;
+window.clearFilters = clearFilters;
+window.exportMaterialsList = exportMaterialsList;
+window.toggleDarkMode = toggleDarkMode;
+window.toggleFavorite = toggleFavorite;
+window.toggleFavorites = toggleFavorites;
+window.updatePriceRange = updatePriceRange;
+window.quickViewMaterial = quickViewMaterial;
+window.compareMaterials = compareMaterials;
+window.shareMaterial = shareMaterial;
+window.showComparisonModal = showComparisonModal;
+window.removeFromComparison = removeFromComparison;
+window.saveCurrentSearch = saveCurrentSearch;
+window.showSavedSearches = showSavedSearches;
+window.applySavedSearch = applySavedSearch;
+window.deleteSavedSearch = deleteSavedSearch;
+
+// Export materials list to CSV
+function exportMaterialsList() {
+    if (!filteredMaterials || filteredMaterials.length === 0) {
+        showNotification('No materials to export', 'warning');
+        return;
+    }
+    
+    const columns = [
+        { key: 'material', label: 'Material' },
+        { key: 'brand', label: 'Brand' },
+        { key: 'category', label: 'Category' },
+        { key: 'quantity', label: 'Quantity' },
+        { key: 'unit', label: 'Unit' },
+        { key: 'priceToday', label: 'Price' },
+        { key: 'mrp', label: 'MRP' },
+        { key: 'project_name', label: 'Project' },
+        { key: 'project_location', label: 'Location' },
+        { key: 'condition', label: 'Condition' }
+    ];
+    
+    exportToCSV(filteredMaterials, 'materials-list', columns);
+    showNotification(`Exported ${filteredMaterials.length} materials successfully!`, 'success');
+}
+
+// Quick view modal (lighter version of product modal)
+function quickViewMaterial(materialId) {
+    const material = materials.find(m => m.id === materialId);
+    if (!material) return;
+    
+    const photoUrl = parsePhoto(material.photo);
+    const isFav = isFavorite(materialId);
+    
+    const quickViewModal = document.createElement('div');
+    quickViewModal.id = 'quick-view-modal';
+    quickViewModal.className = 'modal';
+    quickViewModal.innerHTML = `
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>${material.material}</h3>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button onclick="toggleFavorite('${materialId}'); document.getElementById('quick-view-modal').remove();" 
+                            style="background: ${isFav ? '#ef4444' : '#f3f4f6'}; color: ${isFav ? 'white' : '#374151'}; border: none; padding: 0.5rem; border-radius: 6px; cursor: pointer;">
+                        <i class="fas fa-heart"></i>
+                    </button>
+                    <button onclick="shareMaterial('${materialId}')" 
+                            style="background: #3b82f6; color: white; border: none; padding: 0.5rem; border-radius: 6px; cursor: pointer;">
+                        <i class="fas fa-share"></i>
+                    </button>
+                    <button onclick="document.getElementById('quick-view-modal').remove()" 
+                            style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div>
+                    ${photoUrl ? `<img src="${photoUrl}" style="width: 100%; border-radius: 8px;">` : 
+                        `<div style="height: 200px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-image" style="font-size: 3rem; color: #9ca3af;"></i>
+                        </div>`}
+                </div>
+                <div>
+                    <h4 style="margin: 0 0 0.5rem 0;">${material.material}</h4>
+                    ${material.brand ? `<p style="color: #6b7280; margin: 0 0 0.5rem 0;"><strong>Brand:</strong> ${material.brand}</p>` : ''}
+                    <p style="font-size: 1.5rem; font-weight: 700; color: #10b981; margin: 0.5rem 0;">₹${material.priceToday || 0}</p>
+                    <p style="margin: 0.5rem 0;"><strong>Available:</strong> ${material.qty} ${material.unit || 'pcs'}</p>
+                    <p style="margin: 0.5rem 0;"><strong>Condition:</strong> ${material.condition || 'Good'}</p>
+                    <div style="margin-top: 1rem;">
+                        ${getCartButtonHTML(material)}
+                    </div>
+                    <button onclick="showProductModal('${materialId}'); document.getElementById('quick-view-modal').remove();" 
+                            class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+                        View Full Details
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(quickViewModal);
+    quickViewModal.classList.add('show');
+}
+
+// Material comparison
+let comparisonList = [];
+
+function compareMaterials(materialId) {
+    const material = materials.find(m => m.id === materialId);
+    if (!material) return;
+    
+    if (comparisonList.find(m => m.id === materialId)) {
+        showNotification('Material already in comparison', 'warning');
+        return;
+    }
+    
+    if (comparisonList.length >= 3) {
+        showNotification('Maximum 3 materials can be compared', 'warning');
+        return;
+    }
+    
+    comparisonList.push(material);
+    showNotification('Added to comparison', 'success');
+    updateComparisonDisplay();
+}
+
+function removeFromComparison(materialId) {
+    comparisonList = comparisonList.filter(m => m.id !== materialId);
+    updateComparisonDisplay();
+    const modal = document.getElementById('comparison-modal');
+    if (modal && modal.classList.contains('show')) {
+        showComparisonModal(); // Refresh modal
+    }
+}
+
+function updateComparisonDisplay() {
+    const badge = document.getElementById('comparison-badge');
+    if (badge) {
+        if (comparisonList.length > 0) {
+            badge.textContent = comparisonList.length;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+function showComparisonModal() {
+    if (comparisonList.length === 0) {
+        showNotification('No materials to compare', 'warning');
+        return;
+    }
+    
+    let modal = document.getElementById('comparison-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'comparison-modal';
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+    }
+    
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 1200px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-balance-scale"></i> Compare Materials</h2>
+                <button onclick="document.getElementById('comparison-modal').classList.remove('show')" 
+                        style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+            <div class="modal-body" style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 1rem; border: 1px solid #e5e7eb; background: #f9fafb;">Property</th>
+                            ${comparisonList.map(m => `
+                                <th style="padding: 1rem; border: 1px solid #e5e7eb; background: #f9fafb; position: relative;">
+                                    <button onclick="removeFromComparison('${m.id}')" 
+                                            style="position: absolute; top: 0.5rem; right: 0.5rem; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer;">
+                                        <i class="fas fa-times" style="font-size: 0.75rem;"></i>
+                                    </button>
+                                    ${m.material}
+                                </th>
+                            `).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid #e5e7eb;"><strong>Price</strong></td>
+                            ${comparisonList.map(m => `<td style="padding: 0.75rem; border: 1px solid #e5e7eb;">₹${m.priceToday || 0}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid #e5e7eb;"><strong>Brand</strong></td>
+                            ${comparisonList.map(m => `<td style="padding: 0.75rem; border: 1px solid #e5e7eb;">${m.brand || 'N/A'}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid #e5e7eb;"><strong>Quantity</strong></td>
+                            ${comparisonList.map(m => `<td style="padding: 0.75rem; border: 1px solid #e5e7eb;">${m.qty} ${m.unit || 'pcs'}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid #e5e7eb;"><strong>Condition</strong></td>
+                            ${comparisonList.map(m => `<td style="padding: 0.75rem; border: 1px solid #e5e7eb;">${m.condition || 'Good'}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid #e5e7eb;"><strong>Category</strong></td>
+                            ${comparisonList.map(m => `<td style="padding: 0.75rem; border: 1px solid #e5e7eb;">${m.category || 'Other'}</td>`).join('')}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    modal.classList.add('show');
+}
+
+// Share material
+function shareMaterial(materialId) {
+    const material = materials.find(m => m.id === materialId);
+    if (!material) return;
+    
+    const url = `${window.location.origin}/buyer?material=${materialId}`;
+    const text = `Check out this material: ${material.material} - ₹${material.priceToday || 0}`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: material.material,
+            text: text,
+            url: url
+        }).catch(err => {
+            copyToClipboard(url);
+        });
+    } else {
+        copyToClipboard(url);
+    }
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showNotification('Link copied to clipboard!', 'success');
+    }).catch(() => {
+        // Fallback
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showNotification('Link copied to clipboard!', 'success');
+    });
+}
+
+// Calculate distance between two coordinates (Haversine formula)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of the Earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Distance in km
+}
+
+// Material recommendations based on viewing history and favorites
+function getMaterialRecommendations() {
+    if (!currentUser) return [];
+    
+    // Get user's favorite categories
+    const favoriteCategories = favorites.map(f => {
+        const material = materials.find(m => m.id === f.materialId);
+        return material?.category;
+    }).filter(Boolean);
+    
+    // Get most viewed categories from localStorage
+    const viewHistory = JSON.parse(localStorage.getItem('greenscore-view-history') || '[]');
+    const categoryViews = {};
+    viewHistory.forEach(materialId => {
+        const material = materials.find(m => m.id === materialId);
+        if (material?.category) {
+            categoryViews[material.category] = (categoryViews[material.category] || 0) + 1;
+        }
+    });
+    
+    // Recommend materials from favorite/most viewed categories
+    const recommendedCategories = [...new Set([...favoriteCategories, ...Object.keys(categoryViews).sort((a, b) => categoryViews[b] - categoryViews[a]).slice(0, 3)])];
+    
+    return materials
+        .filter(m => recommendedCategories.includes(m.category))
+        .filter(m => !favorites.some(f => f.materialId === m.id))
+        .slice(0, 6);
+}
+
+// Track material views for recommendations
+function trackMaterialView(materialId) {
+    let viewHistory = JSON.parse(localStorage.getItem('greenscore-view-history') || '[]');
+    viewHistory = viewHistory.filter(id => id !== materialId); // Remove if exists
+    viewHistory.unshift(materialId); // Add to front
+    viewHistory = viewHistory.slice(0, 50); // Keep last 50
+    localStorage.setItem('greenscore-view-history', JSON.stringify(viewHistory));
+}
+
+// Saved searches
+let savedSearches = [];
+
+function loadSavedSearches() {
+    const saved = localStorage.getItem('greenscore-saved-searches');
+    if (saved) {
+        savedSearches = JSON.parse(saved);
+    }
+}
+
+function saveSearch(name, filters) {
+    savedSearches.push({
+        id: Date.now().toString(),
+        name: name,
+        filters: filters,
+        createdAt: new Date().toISOString()
+    });
+    localStorage.setItem('greenscore-saved-searches', JSON.stringify(savedSearches));
+    showNotification('Search saved!', 'success');
+}
+
+function applySavedSearch(search) {
+    // Apply all filters from saved search
+    if (search.filters.search) document.getElementById('search-input').value = search.filters.search;
+    if (search.filters.category) document.getElementById('category-filter').value = search.filters.category;
+    if (search.filters.condition) document.getElementById('condition-filter').value = search.filters.condition;
+    if (search.filters.project) document.getElementById('project-filter').value = search.filters.project;
+    if (search.filters.location) document.getElementById('location-filter').value = search.filters.location;
+    if (search.filters.priceMin) document.getElementById('price-range-min').value = search.filters.priceMin;
+    if (search.filters.priceMax) document.getElementById('price-range-max').value = search.filters.priceMax;
+    if (search.filters.sort) document.getElementById('sort-filter').value = search.filters.sort;
+    
+    updatePriceRange();
+    filterMaterials();
+    showNotification(`Applied saved search: ${search.name}`, 'success');
+}
+
+function deleteSavedSearch(searchId) {
+    savedSearches = savedSearches.filter(s => s.id !== searchId);
+    localStorage.setItem('greenscore-saved-searches', JSON.stringify(savedSearches));
+    showNotification('Search deleted', 'info');
+    showSavedSearches(); // Refresh modal
+}
+
+function saveCurrentSearch() {
+    const name = prompt('Enter a name for this search:');
+    if (!name) return;
+    
+    const filters = {
+        search: document.getElementById('search-input').value,
+        category: document.getElementById('category-filter').value,
+        condition: document.getElementById('condition-filter').value,
+        project: document.getElementById('project-filter').value,
+        location: document.getElementById('location-filter').value,
+        priceMin: document.getElementById('price-range-min')?.value || 0,
+        priceMax: document.getElementById('price-range-max')?.value || 1000000,
+        sort: document.getElementById('sort-filter').value
+    };
+    
+    saveSearch(name, filters);
+}
+
+function showSavedSearches() {
+    let modal = document.getElementById('saved-searches-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'saved-searches-modal';
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+    }
+    
+    if (savedSearches.length === 0) {
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-bookmark"></i> Saved Searches</h3>
+                    <button onclick="document.getElementById('saved-searches-modal').classList.remove('show')" 
+                            style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p style="text-align: center; color: #6b7280; padding: 2rem;">No saved searches yet</p>
+                </div>
+            </div>
+        `;
+    } else {
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-bookmark"></i> Saved Searches</h3>
+                    <button onclick="document.getElementById('saved-searches-modal').classList.remove('show')" 
+                            style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        ${savedSearches.map(search => `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #f9fafb; border-radius: 8px;">
+                                <div>
+                                    <strong>${search.name}</strong>
+                                    <div style="font-size: 0.875rem; color: #6b7280; margin-top: 0.25rem;">
+                                        ${Object.entries(search.filters).filter(([k, v]) => v && v !== 'all' && v !== '0' && v !== '1000000').map(([k, v]) => `${k}: ${v}`).join(', ') || 'Default filters'}
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button onclick="applySavedSearch(${JSON.stringify(search).replace(/"/g, '&quot;')}); document.getElementById('saved-searches-modal').classList.remove('show');" 
+                                            class="btn btn-primary" style="padding: 0.5rem 1rem;">
+                                        <i class="fas fa-play"></i> Apply
+                                    </button>
+                                    <button onclick="deleteSavedSearch('${search.id}')" 
+                                            class="btn btn-danger" style="padding: 0.5rem;">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    modal.classList.add('show');
+}
+
+// Show recommendations
+function displayRecommendations() {
+    const section = document.getElementById('recommendations-section');
+    const grid = document.getElementById('recommendations-grid');
+    if (!section || !grid) return;
+    
+    const recommendations = getMaterialRecommendations();
+    if (recommendations.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    
+    section.style.display = 'block';
+    grid.innerHTML = recommendations.map(material => {
+        const photoUrl = parsePhoto(material.photo);
+        const isFav = isFavorite(material.id);
+        const favoriteButton = `
+            <button onclick="event.stopPropagation(); toggleFavorite('${material.id}')" 
+                    style="position: absolute; top: 10px; right: 10px; background: ${isFav ? 'rgba(239, 68, 68, 0.9)' : 'rgba(0, 0, 0, 0.5)'}; color: white; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; z-index: 5;">
+                <i class="fas fa-heart"></i>
+            </button>
+        `;
+        
+        return `
+            <div class="product-card" onclick="showProductModal('${material.id}')" style="position: relative;">
+                ${favoriteButton}
+                <div class="product-image">
+                    ${photoUrl ? `<img src="${photoUrl}" alt="${material.material}" loading="lazy">` : 
+                        `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                            <i class="fas fa-image" style="font-size:2rem;"></i>
+                        </div>`}
+                </div>
+                <div class="product-info">
+                    <div class="product-header">
+                        <span class="product-category">${material.category || 'Other'}</span>
+                    </div>
+                    <h3>${material.material}</h3>
+                    ${material.brand ? `<div class="product-brand">${material.brand}</div>` : ''}
+                    <div class="product-footer">
+                        <div class="product-price">₹${material.priceToday || 0}</div>
+                        ${getCartButtonHTML(material)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
 
 // Order timeline functionality
 async function showOrderTimeline(orderId) {

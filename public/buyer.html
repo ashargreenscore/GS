@@ -32,9 +32,17 @@
                         <i class="fas fa-store"></i>
                         Switch to Seller
                     </a>
-                    <a href="#" onclick="toggleNotifications()" class="notification-btn" title="Notifications" style="position: relative;">
+                    <a href="#" onclick="toggleFavorites()" class="notification-btn" title="Favorites" aria-label="View favorites" role="button" tabindex="0" style="position: relative;">
+                        <i class="fas fa-heart"></i>
+                        <span id="favorites-badge" class="notification-badge" aria-live="polite" style="display: none; position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 11px;">0</span>
+                    </a>
+                    <a href="#" onclick="showComparisonModal()" class="notification-btn" title="Compare Materials" aria-label="Compare materials" role="button" tabindex="0" style="position: relative;">
+                        <i class="fas fa-balance-scale"></i>
+                        <span id="comparison-badge" class="notification-badge" aria-live="polite" style="display: none; position: absolute; top: -8px; right: -8px; background: #3b82f6; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 11px;">0</span>
+                    </a>
+                    <a href="#" onclick="toggleNotifications()" class="notification-btn" title="Notifications" aria-label="View notifications" role="button" tabindex="0" style="position: relative;">
                         <i class="fas fa-bell"></i>
-                        <span id="notification-badge" class="notification-badge" style="display: none; position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 11px;">0</span>
+                        <span id="notification-badge" class="notification-badge" aria-live="polite" style="display: none; position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 11px;">0</span>
                     </a>
                     <div class="user-profile-dropdown">
                         <button class="user-profile-btn" onclick="toggleUserProfile()">
@@ -133,32 +141,42 @@
                 <div class="search-section">
                     <div class="search-bar">
                         <i class="fas fa-search"></i>
-                        <input type="text" id="search-input" placeholder="Search materials, brands, specifications...">
+                        <input type="text" id="search-input" placeholder="Search materials, brands, specifications..." aria-label="Search materials" role="searchbox">
                     </div>
                     <div class="filters">
-                        <select id="category-filter">
+                        <select id="category-filter" aria-label="Filter by category">
                             <option value="all">All Categories</option>
                         </select>
-                        <select id="condition-filter">
+                        <select id="condition-filter" aria-label="Filter by condition">
                             <option value="all">All Conditions</option>
                             <option value="new">New</option>
                             <option value="like-new">Like New</option>
                             <option value="good">Good</option>
                             <option value="fair">Fair</option>
                         </select>
-                        <select id="project-filter">
+                        <select id="project-filter" aria-label="Filter by project">
                             <option value="all">All Projects</option>
                         </select>
-                        <select id="location-filter">
+                        <select id="location-filter" aria-label="Filter by location">
                             <option value="all">All Locations</option>
                         </select>
-                        <select id="sort-filter">
+                        <select id="sort-filter" aria-label="Sort materials">
                             <option value="newest">Newest First</option>
                             <option value="price-low">Price: Low to High</option>
                             <option value="price-high">Price: High to Low</option>
+                            <option value="distance" id="distance-sort-option" style="display: none;">Distance (Nearest First)</option>
                         </select>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0 0.5rem;">
+                            <label style="font-size: 0.875rem; color: #6b7280;">Price:</label>
+                            <input type="range" id="price-range-min" min="0" max="1000000" value="0" step="1000" style="width: 100px;" oninput="updatePriceRange()">
+                            <span id="price-range-display" style="font-size: 0.875rem; color: #374151; min-width: 120px;">₹0 - ₹10,00,000</span>
+                            <input type="range" id="price-range-max" min="0" max="1000000" value="1000000" step="1000" style="width: 100px;" oninput="updatePriceRange()">
+                        </div>
                         <button id="view-toggle-btn" class="view-toggle-btn" onclick="toggleMapView()" title="Toggle Map/List View">
                             <i class="fas fa-map"></i> <span id="view-toggle-text">Map View</span>
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearFilters()" title="Clear all filters (Ctrl+R)">
+                            <i class="fas fa-times-circle"></i> Clear Filters
                         </button>
                     </div>
                 </div>
@@ -172,10 +190,15 @@
                     </div>
                 </div>
 
-                <div class="products-section">
+                <div class="products-section" id="products-section">
                     <div class="products-header">
                         <h2 id="products-title">All Materials</h2>
-                        <span id="products-count">0 items found</span>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <span id="products-count">0 items found</span>
+                            <button class="btn btn-secondary" onclick="exportMaterialsList()" title="Export to CSV">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                        </div>
                     </div>
 
                     <!-- List View -->
