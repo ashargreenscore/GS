@@ -5526,3 +5526,31 @@ window.openProfilePage = openProfilePage;
 window.closeProfilePage = closeProfilePage;
 window.switchProfileTab = switchProfileTab;
 
+// Dark mode toggle
+function toggleDarkMode() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('greenscore-theme', newTheme);
+    
+    // Update icon
+    const icon = document.getElementById('dark-mode-icon');
+    if (icon) {
+        icon.className = newTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+    }
+}
+
+// Restore theme from localStorage on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const savedTheme = localStorage.getItem('greenscore-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    
+    // Update icon
+    const icon = document.getElementById('dark-mode-icon');
+    if (icon) {
+        icon.className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+    }
+});
+
+window.toggleDarkMode = toggleDarkMode;
+

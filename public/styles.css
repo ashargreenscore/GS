@@ -270,6 +270,38 @@ body {
     transition: transform 0.3s;
 }
 
+/* Dark Mode Toggle Button */
+.dark-mode-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: #f3f4f6;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s;
+    color: #1f2937;
+    font-size: 1.1rem;
+}
+
+.dark-mode-toggle:hover {
+    background: #10b981;
+    color: white;
+    transform: scale(1.1);
+}
+
+[data-theme="dark"] .dark-mode-toggle {
+    background: #374151;
+    color: #f9fafb;
+}
+
+[data-theme="dark"] .dark-mode-toggle:hover {
+    background: #10b981;
+    color: white;
+}
+
 .user-profile-menu {
     position: absolute;
     top: calc(100% + 10px);
