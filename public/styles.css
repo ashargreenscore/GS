@@ -546,7 +546,7 @@ body {
     padding: 0.875rem 1.5rem;
     background: transparent;
     border: none;
-    color: #ef4444;
+    color: var(--error-color);
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
@@ -558,8 +558,17 @@ body {
 }
 
 .profile-signout-btn:hover {
-    background: #fef2f2;
-    color: #dc2626;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error-color);
+}
+
+[data-theme="dark"] .profile-signout-btn {
+    color: var(--error-color) !important;
+}
+
+[data-theme="dark"] .profile-signout-btn:hover {
+    background: rgba(239, 68, 68, 0.2) !important;
+    color: var(--error-color) !important;
 }
 
 /* Buttons */
@@ -4184,6 +4193,81 @@ body {
 }
 
 [data-theme="dark"] .detail-label {
+    color: var(--text-secondary) !important;
+}
+
+/* Order Card Styles */
+.order-card-item {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+.order-card-item h4 {
+    color: var(--text-primary) !important;
+}
+
+.order-card-item .order-detail-label {
+    color: var(--text-secondary) !important;
+}
+
+.order-card-item .order-detail-value {
+    color: var(--text-primary) !important;
+}
+
+.order-card-item .order-info-box {
+    background: var(--bg-tertiary) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+.order-card-item .shipping-address-box {
+    background: rgba(16, 185, 129, 0.1) !important;
+    border-left: 3px solid var(--success-color) !important;
+}
+
+.order-card-item .shipping-address-label {
+    color: var(--success-color) !important;
+}
+
+.order-card-item .shipping-address-value {
+    color: var(--text-primary) !important;
+}
+
+.order-card-item .order-price {
+    color: var(--success-color) !important;
+}
+
+.order-card-item .order-price-detail {
+    color: var(--text-secondary) !important;
+}
+
+.order-card-item .order-image-placeholder {
+    background: var(--bg-tertiary) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .profile-page-signout-btn {
+    background: rgba(239, 68, 68, 0.15) !important;
+    border: 2px solid rgba(239, 68, 68, 0.3) !important;
+    color: var(--error-color) !important;
+}
+
+[data-theme="dark"] .profile-page-signout-btn:hover {
+    background: rgba(239, 68, 68, 0.25) !important;
+    border-color: var(--error-color) !important;
+}
+
+[data-theme="dark"] .profile-account-form-container {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+[data-theme="dark"] .profile-account-form-container label {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .profile-account-form-container small {
     color: var(--text-secondary) !important;
 }
 
