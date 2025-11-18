@@ -396,11 +396,17 @@ body {
     font-size: 1.1rem;
     font-weight: 700;
     margin-bottom: 0.25rem;
+    color: white;
 }
 
 .profile-email {
     font-size: 0.875rem;
     opacity: 0.9;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.profile-menu-item {
+    color: var(--text-primary) !important;
 }
 
 .profile-details {
@@ -412,7 +418,7 @@ body {
     align-items: flex-start;
     gap: 1rem;
     padding: 0.75rem 0;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .profile-detail-item:last-of-type {
@@ -435,7 +441,7 @@ body {
 
 .detail-label {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -443,8 +449,90 @@ body {
 
 .detail-value {
     font-size: 0.9rem;
-    color: #1f2937;
+    color: var(--text-primary);
     font-weight: 500;
+}
+
+/* Profile Page Styles */
+.profile-page-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px var(--shadow);
+    border: 1px solid var(--border-color);
+}
+
+.profile-page-name {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary) !important;
+}
+
+.profile-page-email {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary) !important;
+}
+
+.profile-page-label {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+.profile-page-value {
+    font-weight: 500;
+    color: var(--text-primary) !important;
+    font-size: 0.95rem;
+}
+
+.profile-page-section-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary) !important;
+}
+
+.profile-page-section-subtitle {
+    margin: 0;
+    color: var(--text-secondary) !important;
+    font-size: 0.95rem;
+}
+
+.profile-page-empty-state {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary) !important;
+}
+
+.profile-page-empty-state i {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+    color: var(--text-secondary);
+}
+
+.profile-page-empty-state p {
+    color: var(--text-secondary) !important;
+    margin: 0;
+}
+
+.profile-page-view-all {
+    color: var(--success-color) !important;
+    font-weight: 600;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.profile-page-view-all:hover {
+    color: var(--success-color);
+    opacity: 0.8;
 }
 
 .profile-divider {
@@ -4064,6 +4152,39 @@ body {
 [data-theme="dark"] .profile-tab-content {
     background: transparent;
     color: var(--text-primary);
+}
+
+[data-theme="dark"] .profile-page-card {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+[data-theme="dark"] .profile-page-name,
+[data-theme="dark"] .profile-page-value {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .profile-page-email,
+[data-theme="dark"] .profile-page-label,
+[data-theme="dark"] .profile-page-section-subtitle {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .profile-page-section-title {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .profile-page-empty-state,
+[data-theme="dark"] .profile-page-empty-state p {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .detail-value {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .detail-label {
+    color: var(--text-secondary) !important;
 }
 
 /* Notifications */

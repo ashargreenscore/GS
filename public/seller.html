@@ -53,7 +53,7 @@
                                 </div>
                             </div>
                             <div class="profile-divider"></div>
-                            <button class="profile-menu-item" onclick="openAccountPage()" style="width: 100%; padding: 0.875rem 1.5rem; background: transparent; border: none; color: #1f2937; font-weight: 500; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 0.75rem; font-size: 0.95rem; text-align: left;">
+                            <button class="profile-menu-item" onclick="openAccountPage()" style="width: 100%; padding: 0.875rem 1.5rem; background: transparent; border: none; font-weight: 500; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 0.75rem; font-size: 0.95rem; text-align: left;">
                                 <i class="fas fa-user-edit" style="color: #3b82f6;"></i>
                                 <span>Edit Account</span>
                             </button>
@@ -992,34 +992,34 @@
                 <div id="profile-overview-tab" class="profile-tab-content active">
                     <div style="display: grid; grid-template-columns: 300px 1fr; gap: 2rem;">
                         <!-- User Info Card -->
-                        <div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); height: fit-content; position: sticky; top: 120px;">
+                        <div class="profile-page-card" style="height: fit-content; position: sticky; top: 120px;">
                             <div style="text-align: center; margin-bottom: 1.5rem;">
                                 <div style="width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #10b981 0%, #059669 100%); display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
                                     <i class="fas fa-user" style="font-size: 3rem; color: white;"></i>
                                 </div>
-                                <h3 style="margin: 0 0 0.25rem 0; font-size: 1.25rem; font-weight: 700;" id="profile-page-name">Loading...</h3>
-                                <p style="margin: 0; color: #6b7280; font-size: 0.875rem;" id="profile-page-email">Loading...</p>
+                                <h3 class="profile-page-name" id="profile-page-name">Loading...</h3>
+                                <p class="profile-page-email" id="profile-page-email">Loading...</p>
                             </div>
-                            <div style="border-top: 1px solid #e5e7eb; padding-top: 1rem;">
+                            <div style="border-top: 1px solid var(--border-color); padding-top: 1rem;">
                                 <div style="margin-bottom: 0.75rem;">
-                                    <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Company</div>
-                                    <div style="font-weight: 500;" id="profile-page-company">-</div>
+                                    <div class="profile-page-label">Company</div>
+                                    <div class="profile-page-value" id="profile-page-company">-</div>
                                 </div>
                                 <div style="margin-bottom: 0.75rem;">
-                                    <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Phone</div>
-                                    <div style="font-weight: 500;" id="profile-page-phone">-</div>
+                                    <div class="profile-page-label">Phone</div>
+                                    <div class="profile-page-value" id="profile-page-phone">-</div>
                                 </div>
                                 <div style="margin-bottom: 0.75rem;">
-                                    <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Designation</div>
-                                    <div style="font-weight: 500;" id="profile-page-designation">-</div>
+                                    <div class="profile-page-label">Designation</div>
+                                    <div class="profile-page-value" id="profile-page-designation">-</div>
                                 </div>
                                 <div style="margin-bottom: 0.75rem;">
-                                    <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Project</div>
-                                    <div style="font-weight: 500;" id="profile-page-project">-</div>
+                                    <div class="profile-page-label">Project</div>
+                                    <div class="profile-page-value" id="profile-page-project">-</div>
                                 </div>
                                 <div>
-                                    <div style="color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Address</div>
-                                    <div style="font-weight: 500; line-height: 1.5;" id="profile-page-address">-</div>
+                                    <div class="profile-page-label">Address</div>
+                                    <div class="profile-page-value" id="profile-page-address" style="line-height: 1.5;">-</div>
                                 </div>
                             </div>
                             <button onclick="switchProfileTab('account')" style="width: 100%; margin-top: 1rem; padding: 0.75rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
@@ -1046,16 +1046,16 @@
                             </div>
 
                             <!-- Recent Orders Preview -->
-                            <div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <div class="profile-page-card">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                                    <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700;">Recent Sales</h3>
-                                    <button onclick="switchProfileTab('orders')" style="color: #10b981; font-weight: 600; background: none; border: none; cursor: pointer;">
+                                    <h3 class="profile-page-section-title">Recent Sales</h3>
+                                    <button onclick="switchProfileTab('orders')" class="profile-page-view-all">
                                         View All <i class="fas fa-arrow-right"></i>
                                     </button>
                                 </div>
                                 <div id="profile-recent-orders">
-                                    <div style="text-align: center; padding: 2rem; color: #6b7280;">
-                                        <i class="fas fa-shopping-bag" style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5;"></i>
+                                    <div class="profile-page-empty-state">
+                                        <i class="fas fa-shopping-bag"></i>
                                         <p>No recent sales</p>
                                     </div>
                                 </div>
@@ -1067,8 +1067,8 @@
                 <!-- Orders Tab -->
                 <div id="profile-orders-tab" class="profile-tab-content" style="display: none;">
                     <div style="margin-bottom: 1.5rem;">
-                        <h3 style="margin: 0 0 0.5rem 0; font-size: 1.5rem; font-weight: 700;">Sales Orders</h3>
-                        <p style="margin: 0; color: #6b7280;">Track all your completed sales</p>
+                        <h3 class="profile-page-section-title" style="margin: 0 0 0.5rem 0; font-size: 1.5rem;">Sales Orders</h3>
+                        <p class="profile-page-section-subtitle" style="margin: 0;">Track all your completed sales</p>
                     </div>
                     <div id="profile-orders-list">
                         <div style="text-align: center; padding: 3rem; color: #6b7280;">
