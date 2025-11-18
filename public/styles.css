@@ -1156,21 +1156,22 @@ body {
 
 .buyer-header h1 {
     font-size: 2.5rem;
-    color: #1f2937;
+    color: var(--text-primary);
     margin-bottom: 0.5rem;
 }
 
 .buyer-header p {
-    color: #64748b;
+    color: var(--text-secondary);
     font-size: 1.1rem;
 }
 
 .marketplace-controls {
-    background: white;
+    background: var(--card-bg);
     border-radius: 1rem;
     padding: 2rem;
     margin-bottom: 2rem;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    box-shadow: 0 4px 6px var(--shadow);
+    border: 1px solid var(--border-color);
 }
 
 .search-section {
@@ -1189,16 +1190,18 @@ body {
     left: 1rem;
     top: 50%;
     transform: translateY(-50%);
-    color: #64748b;
+    color: var(--text-secondary);
 }
 
 .search-bar input {
     width: 100%;
     padding: 1rem 1rem 1rem 3rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--input-border);
     border-radius: 0.5rem;
     font-size: 1rem;
     transition: border-color 0.3s;
+    background: var(--input-bg);
+    color: var(--text-primary);
 }
 
 .search-bar input:focus {
@@ -1215,10 +1218,11 @@ body {
 
 .filters select {
     padding: 0.75rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--input-border);
     border-radius: 0.5rem;
     font-size: 0.9rem;
-    background: white;
+    background: var(--input-bg);
+    color: var(--text-primary);
 }
 
 .marketplace-content {
@@ -1228,11 +1232,12 @@ body {
 }
 
 .category-sidebar {
-    background: white;
+    background: var(--card-bg);
     border-radius: 1rem;
+    border: 1px solid var(--border-color);
     padding: 1.5rem;
     height: fit-content;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    box-shadow: 0 4px 6px var(--shadow);
     position: sticky;
     top: 20px;
     max-height: calc(100vh - 40px);
@@ -1241,7 +1246,7 @@ body {
 
 .category-sidebar h3 {
     margin-bottom: 1rem;
-    color: #1f2937;
+    color: var(--text-primary);
 }
 
 .category-list {
@@ -1261,7 +1266,7 @@ body {
 }
 
 .category-item:hover {
-    background: #f3f4f6;
+    background: var(--hover-bg);
 }
 
 .category-item.active {
@@ -1277,10 +1282,11 @@ body {
 }
 
 .products-section {
-    background: white;
+    background: var(--card-bg);
     border-radius: 1rem;
     padding: 2rem;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    box-shadow: 0 4px 6px var(--shadow);
+    border: 1px solid var(--border-color);
 }
 
 .products-header {
@@ -1292,11 +1298,11 @@ body {
 }
 
 .products-header h2 {
-    color: #1f2937;
+    color: var(--text-primary);
 }
 
 .products-header span {
-    color: #64748b;
+    color: var(--text-secondary);
     font-weight: 500;
 }
 
@@ -4120,11 +4126,38 @@ body {
 }
 
 [data-theme="dark"] .marketplace-controls {
-    background: transparent;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .products-section {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
 }
 
 [data-theme="dark"] .products-header {
     color: var(--text-primary);
+}
+
+[data-theme="dark"] .products-header h2 {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .category-sidebar {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .category-sidebar h3 {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .category-item {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .category-item:hover {
+    background: var(--hover-bg);
 }
 
 [data-theme="dark"] .products-count {
