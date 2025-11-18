@@ -788,8 +788,8 @@ function initSellerMap() {
     // Initialize map centered on India
     sellerMap = L.map('inventory-map-container').setView([20.5937, 78.9629], 5);
     
-    // Add CartoDB Positron tiles (English labels by default)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    // Add CartoDB Voyager tiles (colored with English labels)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '© OpenStreetMap contributors © CARTO',
         maxZoom: 19,
         subdomains: 'abcd'
