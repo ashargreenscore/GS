@@ -4856,13 +4856,31 @@ async function loadProfileData() {
         }
         
         // Load sales orders
-        const ordersResponse = await fetch(`/api/seller/${currentUser.id}/orders`);
-        if (ordersResponse.ok) {
-            const orders = await ordersResponse.json();
-            profileOrders = Array.isArray(orders) ? orders : [];
-            displayProfileOrders();
-            updateProfileStats();
+        try {
+            const ordersResponse = await fetch(`/api/seller/${currentUser.id}/orders`);
+            if (ordersResponse.ok) {
+                const orders = await ordersResponse.json();
+                // Handle both array response and object with orders property
+                if (Array.isArray(orders)) {
+                    profileOrders = orders;
+                } else if (orders && Array.isArray(orders.orders)) {
+                    profileOrders = orders.orders;
+                } else if (orders && orders.success && Array.isArray(orders.data)) {
+                    profileOrders = orders.data;
+                } else {
+                    profileOrders = [];
+                }
+                console.log(`Loaded ${profileOrders.length} sales orders`);
+            } else {
+                console.error('Failed to load sales orders:', ordersResponse.status, ordersResponse.statusText);
+                profileOrders = [];
+            }
+        } catch (error) {
+            console.error('Error fetching sales orders:', error);
+            profileOrders = [];
         }
+        displayProfileOrders();
+        updateProfileStats();
         
         // Load order requests
         const requestsResponse = await fetch(`/api/seller/${currentUser.id}/order-requests`);
