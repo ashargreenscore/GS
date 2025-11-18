@@ -3880,17 +3880,25 @@ body {
 }
 
 [data-theme="dark"] .stat-card {
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
 }
 
 [data-theme="dark"] .stat-card h3 {
-    color: var(--text-primary);
+    color: var(--text-primary) !important;
 }
 
 [data-theme="dark"] .stat-card p {
-    color: var(--text-secondary);
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .stat-content {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .seller-content {
+    color: var(--text-primary);
 }
 
 /* Tabs */
