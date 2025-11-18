@@ -720,19 +720,10 @@ function displayMaterials() {
                 <i class="fas fa-heart" aria-hidden="true"></i>
             </button>
         `;
-        const quickViewBtn = `
-            <button onclick="event.stopPropagation(); quickViewMaterial('${material.id}')" 
-                    aria-label="Quick view ${material.material}"
-                    style="position: absolute; bottom: 10px; left: 10px; background: rgba(59, 130, 246, 0.9); color: white; border: none; border-radius: 6px; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.75rem; z-index: 5; display: flex; align-items: center; gap: 0.25rem;"
-                    title="Quick View">
-                <i class="fas fa-eye" aria-hidden="true"></i> Quick View
-            </button>
-        `;
-        const compareBtn = `
-            <button onclick="event.stopPropagation(); compareMaterials('${material.id}')" 
+        const compareButton = `
+            <button onclick="event.stopPropagation(); compareMaterials('${material.id}')"
                     aria-label="Add ${material.material} to comparison"
-                    style="position: absolute; bottom: 10px; right: 10px; background: rgba(16, 185, 129, 0.9); color: white; border: none; border-radius: 6px; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.75rem; z-index: 5; display: flex; align-items: center; gap: 0.25rem;"
-                    title="Add to Comparison">
+                    style="background: rgba(16, 185, 129, 0.9); color: white; border: none; border-radius: 6px; padding: 0.45rem 0.85rem; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600;">
                 <i class="fas fa-balance-scale" aria-hidden="true"></i> Compare
             </button>
         `;
@@ -744,8 +735,6 @@ function displayMaterials() {
             ${favoriteButton}
             <div class="product-image" role="img" aria-label="Material image">
                 ${imageHtml}
-                ${quickViewBtn}
-                ${compareBtn}
             </div>
             <div class="product-info">
                 <div class="product-header">
@@ -758,9 +747,12 @@ function displayMaterials() {
                     <span><strong>Condition:</strong> ${material.condition ? material.condition.charAt(0).toUpperCase() + material.condition.slice(1) : 'Good'}</span>
                     <span><strong>Available:</strong> ${material.qty} ${material.unit || 'pcs'}</span>
                 </div>
-                <div class="product-footer">
+                <div class="product-footer" style="display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                     <div class="product-price">₹${material.priceToday || 0}</div>
-                    ${cartButtonHtml}
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end;">
+                        ${compareButton}
+                        ${cartButtonHtml}
+                    </div>
                 </div>
             </div>
         </div>
@@ -1201,6 +1193,7 @@ function showProductModal(materialId) {
     
     // Check if current user is admin
     const isAdmin = currentUser && currentUser.userType === 'admin';
+    const isFav = isFavorite(materialId);
     
     modalTitle.textContent = material.material;
     
@@ -1209,7 +1202,7 @@ function showProductModal(materialId) {
     
     modalBody.innerHTML = `
         <!-- Full width image on top -->
-        <div class="product-image" style="width: 100%; height: 400px; border-radius: 10px; overflow: hidden; margin-bottom: 1.25rem; background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%); border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+        <div class="product-image" style="width: 100%; height: 400px; border-radius: 10px; overflow: hidden; margin-bottom: 1.25rem; background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%); border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.08); position: relative;">
             ${photoUrl ? 
                 `<img src="${photoUrl}" alt="${material.material}" style="width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 0.75rem;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                  <div style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
@@ -1221,6 +1214,18 @@ function showProductModal(materialId) {
                      <span style="font-size: 0.875rem; font-weight: 500;">No Image</span>
                  </div>`
             }
+            <div style="position: absolute; top: 16px; right: 16px; display: flex; gap: 0.5rem;">
+                <button onclick="event.stopPropagation(); toggleFavorite('${materialId}'); showProductModal('${materialId}');"
+                        aria-label="${isFav ? 'Remove from favorites' : 'Add to favorites'}"
+                        style="background: ${isFav ? '#ef4444' : '#f3f4f6'}; color: ${isFav ? 'white' : '#374151'}; border: none; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+                    <i class="fas fa-heart"></i>
+                </button>
+                <button onclick="event.stopPropagation(); shareMaterial('${materialId}');"
+                        aria-label="Share ${material.material}"
+                        style="background: #3b82f6; color: white; border: none; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 6px rgba(59,130,246,0.35);">
+                    <i class="fas fa-share-alt"></i>
+                </button>
+            </div>
         </div>
 
         <!-- Material info sections -->
@@ -3007,7 +3012,6 @@ window.toggleDarkMode = toggleDarkMode;
 window.toggleFavorite = toggleFavorite;
 window.toggleFavorites = toggleFavorites;
 window.updatePriceRange = updatePriceRange;
-window.quickViewMaterial = quickViewMaterial;
 window.compareMaterials = compareMaterials;
 window.shareMaterial = shareMaterial;
 window.showComparisonModal = showComparisonModal;
@@ -3039,62 +3043,6 @@ function exportMaterialsList() {
     
     exportToCSV(filteredMaterials, 'materials-list', columns);
     showNotification(`Exported ${filteredMaterials.length} materials successfully!`, 'success');
-}
-
-// Quick view modal (lighter version of product modal)
-function quickViewMaterial(materialId) {
-    const material = materials.find(m => m.id === materialId);
-    if (!material) return;
-    
-    const photoUrl = parsePhoto(material.photo);
-    const isFav = isFavorite(materialId);
-    
-    const quickViewModal = document.createElement('div');
-    quickViewModal.id = 'quick-view-modal';
-    quickViewModal.className = 'modal';
-    quickViewModal.innerHTML = `
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h3>${material.material}</h3>
-                <div style="display: flex; gap: 0.5rem;">
-                    <button onclick="toggleFavorite('${materialId}'); document.getElementById('quick-view-modal').remove();" 
-                            style="background: ${isFav ? '#ef4444' : '#f3f4f6'}; color: ${isFav ? 'white' : '#374151'}; border: none; padding: 0.5rem; border-radius: 6px; cursor: pointer;">
-                        <i class="fas fa-heart"></i>
-                    </button>
-                    <button onclick="shareMaterial('${materialId}')" 
-                            style="background: #3b82f6; color: white; border: none; padding: 0.5rem; border-radius: 6px; cursor: pointer;">
-                        <i class="fas fa-share"></i>
-                    </button>
-                    <button onclick="document.getElementById('quick-view-modal').remove()" 
-                            style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
-                </div>
-            </div>
-            <div class="modal-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div>
-                    ${photoUrl ? `<img src="${photoUrl}" style="width: 100%; border-radius: 8px;">` : 
-                        `<div style="height: 200px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-                            <i class="fas fa-image" style="font-size: 3rem; color: #9ca3af;"></i>
-                        </div>`}
-                </div>
-                <div>
-                    <h4 style="margin: 0 0 0.5rem 0;">${material.material}</h4>
-                    ${material.brand ? `<p style="color: #6b7280; margin: 0 0 0.5rem 0;"><strong>Brand:</strong> ${material.brand}</p>` : ''}
-                    <p style="font-size: 1.5rem; font-weight: 700; color: #10b981; margin: 0.5rem 0;">₹${material.priceToday || 0}</p>
-                    <p style="margin: 0.5rem 0;"><strong>Available:</strong> ${material.qty} ${material.unit || 'pcs'}</p>
-                    <p style="margin: 0.5rem 0;"><strong>Condition:</strong> ${material.condition || 'Good'}</p>
-                    <div style="margin-top: 1rem;">
-                        ${getCartButtonHTML(material)}
-                    </div>
-                    <button onclick="showProductModal('${materialId}'); document.getElementById('quick-view-modal').remove();" 
-                            class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
-                        View Full Details
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(quickViewModal);
-    quickViewModal.classList.add('show');
 }
 
 // Material comparison
