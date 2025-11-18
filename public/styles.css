@@ -1124,17 +1124,19 @@ body {
 .form-group label {
     margin-bottom: 0.5rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-primary);
 }
 
 .form-group input,
 .form-group select,
 .form-group textarea {
     padding: 0.75rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--input-border);
     border-radius: 0.5rem;
     font-size: 1rem;
     transition: border-color 0.3s;
+    background: var(--input-bg);
+    color: var(--text-primary);
 }
 
 .form-group input:focus,
