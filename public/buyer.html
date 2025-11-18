@@ -174,9 +174,6 @@
                             <span class="price-separator">-</span>
                             <input type="number" id="price-range-max" placeholder="Max ₹" min="0" max="1000000" value="1000000" step="1000" oninput="updatePriceRange()" aria-label="Maximum price">
                         </div>
-                        <button id="view-toggle-btn" class="view-toggle-btn" onclick="toggleMapView()" title="Toggle Map/List View">
-                            <i class="fas fa-map"></i> <span id="view-toggle-text">Map View</span>
-                        </button>
                         <button class="btn btn-secondary" onclick="clearFilters()" title="Clear all filters (Ctrl+R)">
                             <i class="fas fa-times-circle"></i> Clear Filters
                         </button>
@@ -197,7 +194,12 @@
 
                 <div class="products-section" id="products-section">
                     <div class="products-header">
-                        <h2 id="products-title">All Materials</h2>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <h2 id="products-title">All Materials</h2>
+                            <button id="view-toggle-btn" class="view-toggle-btn" onclick="toggleMapView()" title="Toggle Map/List View">
+                                <i class="fas fa-map"></i> <span id="view-toggle-text">Map View</span>
+                            </button>
+                        </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
                             <span id="products-count">0 items found</span>
                             <button class="btn btn-secondary" onclick="exportMaterialsList()" title="Export to CSV">
