@@ -335,7 +335,7 @@ function updateAdminMaterialsProgress(percent, message) {
     }
 }
 
-let currentMaterialsView = 'table'; // 'table' or 'grid'
+let currentMaterialsView = 'table'; // 'table', 'grid', or 'map'
 
 function toggleMaterialsView(view) {
     currentMaterialsView = view;
@@ -343,17 +343,26 @@ function toggleMaterialsView(view) {
     // Update button states
     document.getElementById('grid-view-btn').classList.toggle('active', view === 'grid');
     document.getElementById('table-view-btn').classList.toggle('active', view === 'table');
+    const mapBtn = document.getElementById('map-view-btn');
+    if (mapBtn) mapBtn.classList.toggle('active', view === 'map');
     
     // Toggle visibility
     const gridContainer = document.getElementById('materials-grid');
     const tableContainer = document.getElementById('materials-table-container');
+    const mapContainer = document.getElementById('admin-materials-map-container');
     
     if (view === 'grid') {
         gridContainer.style.display = 'grid';
         tableContainer.style.display = 'none';
+        if (mapContainer) mapContainer.style.display = 'none';
+    } else if (view === 'map') {
+        gridContainer.style.display = 'none';
+        tableContainer.style.display = 'none';
+        if (mapContainer) mapContainer.style.display = 'block';
     } else {
         gridContainer.style.display = 'none';
         tableContainer.style.display = 'block';
+        if (mapContainer) mapContainer.style.display = 'none';
     }
     
     displayMaterials();
@@ -434,6 +443,8 @@ function displayMaterials() {
     
     if (currentMaterialsView === 'grid') {
         displayMaterialsGrid();
+    } else if (currentMaterialsView === 'map') {
+        displayMaterialsMap();
     } else {
         displayMaterialsTable();
     }
@@ -630,6 +641,205 @@ function displayMaterialsTable() {
         </tr>
     `;
     }).join('');
+}
+
+// Map functionality for admin materials
+let adminMap = null;
+let adminMarkerClusterGroup = null;
+
+function initAdminMap() {
+    const mapContainer = document.getElementById('admin-materials-map-container');
+    if (!mapContainer || adminMap) return;
+    
+    // Initialize map centered on India
+    adminMap = L.map('admin-materials-map-container').setView([20.5937, 78.9629], 5);
+    
+    // Add CartoDB Voyager tiles (colored with English labels)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap contributors © CARTO',
+        maxZoom: 19,
+        subdomains: 'abcd'
+    }).addTo(adminMap);
+    
+    // Initialize marker cluster group
+    adminMarkerClusterGroup = L.markerClusterGroup({
+        chunkedLoading: true,
+        maxClusterRadius: 50
+    });
+    adminMap.addLayer(adminMarkerClusterGroup);
+}
+
+// Display materials in map view
+async function displayMaterialsMap() {
+    const gridContainer = document.getElementById('materials-grid');
+    const tableContainer = document.getElementById('materials-table-container');
+    const mapContainer = document.getElementById('admin-materials-map-container');
+    
+    gridContainer.style.display = 'none';
+    tableContainer.style.display = 'none';
+    if (mapContainer) mapContainer.style.display = 'block';
+    
+    // Initialize map if not already done
+    if (!adminMap) {
+        initAdminMap();
+    }
+    
+    if (!adminMap || !adminMarkerClusterGroup) {
+        console.error('Map not initialized');
+        return;
+    }
+    
+    // Clear existing markers
+    adminMarkerClusterGroup.clearLayers();
+    
+    // Filter materials with coordinates
+    let materialsWithCoords = filteredMaterials.filter(m => m.latitude && m.longitude);
+    
+    // Auto-geocode materials with addresses but no coordinates
+    const materialsToGeocode = filteredMaterials.filter(m => 
+        !m.latitude && !m.longitude && 
+        (m.project_location || m.location_details || m.location)
+    );
+    
+    if (materialsToGeocode.length > 0) {
+        // Show loading message
+        if (adminMap) {
+            const loadingPopup = L.popup()
+                .setLatLng([20.5937, 78.9629])
+                .setContent('<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px;"></i><p>Geocoding addresses...</p></div>')
+                .openOn(adminMap);
+        }
+        
+        // Geocode addresses (with rate limiting) - increased limit to show more items
+        const geocodeLimit = Math.min(materialsToGeocode.length, 50);
+        for (let i = 0; i < geocodeLimit; i++) {
+            const material = materialsToGeocode[i];
+            const address = material.project_location || material.location_details || material.location;
+            
+            try {
+                const response = await fetch('/api/geocode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address })
+                });
+                
+                const result = await response.json();
+                if (result.success && result.lat && result.lng) {
+                    material.latitude = result.lat;
+                    material.longitude = result.lng;
+                    materialsWithCoords.push(material);
+                }
+                
+                // Rate limit: wait 500ms between requests
+                if (i < geocodeLimit - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            } catch (error) {
+                console.error('Geocoding error for material:', material.id, error);
+            }
+        }
+    }
+    
+    if (materialsWithCoords.length === 0) {
+        // Show message using a popup or overlay on the map
+        if (adminMap) {
+            adminMap.setView([20.5937, 78.9629], 5);
+            const noDataPopup = L.popup()
+                .setLatLng([20.5937, 78.9629])
+                .setContent(`
+                    <div style="text-align: center; padding: 20px; color: #6b7280; max-width: 300px;">
+                        <i class="fas fa-map-marker-alt" style="font-size: 48px; opacity: 0.3; margin-bottom: 10px;"></i>
+                        <p style="margin-bottom: 10px;">No materials with location data found</p>
+                        <p style="font-size: 12px; color: #9ca3af;">Materials need location coordinates to appear on the map</p>
+                    </div>
+                `)
+                .openOn(adminMap);
+        }
+        return;
+    }
+    
+    // Create markers for each material
+    materialsWithCoords.forEach(material => {
+        const lat = parseFloat(material.latitude);
+        const lng = parseFloat(material.longitude);
+        
+        if (isNaN(lat) || isNaN(lng)) return;
+        
+        // Parse photo for popup
+        let photoUrl = null;
+        if (material.photo) {
+            try {
+                const parsed = JSON.parse(material.photo);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    photoUrl = parsed[0];
+                } else if (parsed && typeof parsed === 'string') {
+                    photoUrl = parsed;
+                } else {
+                    photoUrl = material.photo;
+                }
+            } catch {
+                photoUrl = material.photo;
+            }
+        }
+        
+        const photoHtml = photoUrl ? 
+            `<img src="${photoUrl}" alt="${material.material}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;">` :
+            '<div style="width: 100px; height: 100px; background: #e5e7eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;"><i class="fas fa-image" style="color: #9ca3af;"></i></div>';
+        
+        // Get price and quantity with proper fallbacks
+        const price = parseFloat(material.price_today || material.priceToday || material.price || 0) || 0;
+        const quantity = parseInt(material.quantity || material.qty || 0) || 0;
+        const unit = material.unit || 'pcs';
+        
+        const popupContent = `
+            <div style="min-width: 200px; max-width: 300px;">
+                ${photoHtml}
+                <h4 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #111827;">${material.material || 'Material'}</h4>
+                ${material.brand && material.brand !== 'n/a' && material.brand !== 'N/A' ? `<p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px;"><strong>Brand:</strong> ${material.brand}</p>` : ''}
+                <p style="margin: 0 0 8px 0; color: #111827; font-size: 16px; font-weight: 700;">
+                    <span style="color: #10b981;">₹${price.toLocaleString('en-IN')}</span>
+                    <span style="color: #6b7280; font-size: 12px; font-weight: 400;">/${unit}</span>
+                </p>
+                <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 14px;">
+                    <strong>Quantity:</strong> ${quantity.toLocaleString('en-IN')} ${unit}
+                </p>
+                <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 14px;">
+                    <strong>Project:</strong> ${material.project_name || 'No Project'}
+                </p>
+                <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 14px;">
+                    <strong>Seller:</strong> ${material.seller_name || 'Unknown'}
+                </p>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="viewMaterialDetails('${material.id}')" style="flex: 1; padding: 8px 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">
+                        <i class="fas fa-eye"></i> Details
+                    </button>
+                    <button onclick="editMaterial('${material.id}')" style="flex: 1; padding: 8px 12px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        const marker = L.marker([lat, lng]);
+        marker.bindPopup(popupContent);
+        adminMarkerClusterGroup.addLayer(marker);
+    });
+    
+    // Fit map to show all markers with proper bounds
+    if (materialsWithCoords.length > 0) {
+        const bounds = materialsWithCoords.map(m => [parseFloat(m.latitude), parseFloat(m.longitude)]);
+        // Filter out invalid coordinates
+        const validBounds = bounds.filter(b => !isNaN(b[0]) && !isNaN(b[1]) && b[0] !== 0 && b[1] !== 0);
+        
+        if (validBounds.length > 0) {
+            // If only one marker, zoom to a reasonable level
+            if (validBounds.length === 1) {
+                adminMap.setView(validBounds[0], 10);
+            } else {
+                adminMap.fitBounds(validBounds, { padding: [50, 50], maxZoom: 15 });
+            }
+        }
+    }
 }
 
 // Order Requests Management

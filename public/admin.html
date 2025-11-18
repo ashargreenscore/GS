@@ -6,6 +6,11 @@
     <title>Admin Dashboard - GreenScore</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Leaflet CSS for map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <style>
         .admin-dashboard {
             background: #f8fafc;
@@ -457,6 +462,9 @@
                             <button class="btn btn-sm active" onclick="toggleMaterialsView('table')" id="table-view-btn" title="Table View">
                                 <i class="fas fa-list"></i>
                             </button>
+                            <button class="btn btn-sm" onclick="toggleMaterialsView('map')" id="map-view-btn" title="Map View">
+                                <i class="fas fa-map"></i>
+                            </button>
                         </div>
                         <button class="btn btn-primary" onclick="exportMaterials()">
                             <i class="fas fa-download"></i> Export CSV
@@ -475,6 +483,9 @@
                     <div id="materials-grid" style="display: none; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
                         <!-- Materials grid will be populated here -->
                     </div>
+                    
+                    <!-- Map View -->
+                    <div id="admin-materials-map-container" style="display: none; width: 100%; height: 600px; border-radius: 12px; overflow: hidden; margin-top: 1rem;"></div>
                     
                     <!-- Table View -->
                     <div id="materials-table-container">
@@ -842,6 +853,10 @@
 
     <div id="notification" class="notification"></div>
 
+    <!-- Leaflet JS for map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet MarkerCluster JS -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="utils.js"></script>
     <script src="admin.js"></script>
 </body>
