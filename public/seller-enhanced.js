@@ -596,8 +596,10 @@ function displayInventory() {
     
     if (currentView === 'grid') {
         displayGridView(filteredMaterials);
-    } else {
+    } else if (currentView === 'table') {
         displayTableView(filteredMaterials);
+    } else if (currentView === 'map') {
+        displayMapView(filteredMaterials);
     }
 }
 
@@ -605,9 +607,11 @@ function displayInventory() {
 function displayGridView(filteredMaterials) {
     const inventoryGrid = document.getElementById('inventory-grid');
     const inventoryTable = document.getElementById('inventory-table');
+    const mapContainer = document.getElementById('inventory-map-container');
     
     inventoryGrid.style.display = 'grid';
     inventoryTable.style.display = 'none';
+    if (mapContainer) mapContainer.style.display = 'none';
     
     if (filteredMaterials.length === 0) {
         inventoryGrid.innerHTML = `
@@ -727,9 +731,11 @@ function displayGridView(filteredMaterials) {
 function displayTableView(filteredMaterials) {
     const inventoryGrid = document.getElementById('inventory-grid');
     const inventoryTable = document.getElementById('inventory-table');
+    const mapContainer = document.getElementById('inventory-map-container');
     const tableBody = document.getElementById('inventory-table-body');
     
     inventoryGrid.style.display = 'none';
+    if (mapContainer) mapContainer.style.display = 'none';
     inventoryTable.style.display = 'block';
     
     if (filteredMaterials.length === 0) {
@@ -771,6 +777,186 @@ function displayTableView(filteredMaterials) {
     `).join('');
 }
 
+// Map functionality for seller inventory
+let sellerMap = null;
+let sellerMarkerClusterGroup = null;
+
+function initSellerMap() {
+    const mapContainer = document.getElementById('inventory-map-container');
+    if (!mapContainer || sellerMap) return;
+    
+    // Initialize map centered on India
+    sellerMap = L.map('inventory-map-container').setView([20.5937, 78.9629], 5);
+    
+    // Add CartoDB Positron tiles (English labels by default)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap contributors © CARTO',
+        maxZoom: 19,
+        subdomains: 'abcd'
+    }).addTo(sellerMap);
+    
+    // Initialize marker cluster group
+    sellerMarkerClusterGroup = L.markerClusterGroup({
+        chunkedLoading: true,
+        maxClusterRadius: 50
+    });
+    sellerMap.addLayer(sellerMarkerClusterGroup);
+}
+
+// Display materials in map view
+async function displayMapView(filteredMaterials) {
+    const inventoryGrid = document.getElementById('inventory-grid');
+    const inventoryTable = document.getElementById('inventory-table');
+    const mapContainer = document.getElementById('inventory-map-container');
+    
+    inventoryGrid.style.display = 'none';
+    inventoryTable.style.display = 'none';
+    if (mapContainer) mapContainer.style.display = 'block';
+    
+    // Initialize map if not already done
+    if (!sellerMap) {
+        initSellerMap();
+    }
+    
+    if (!sellerMap || !sellerMarkerClusterGroup) {
+        console.error('Map not initialized');
+        return;
+    }
+    
+    // Clear existing markers
+    sellerMarkerClusterGroup.clearLayers();
+    
+    // Filter materials with coordinates
+    let materialsWithCoords = filteredMaterials.filter(m => m.latitude && m.longitude);
+    
+    // Auto-geocode materials with addresses but no coordinates
+    const materialsToGeocode = filteredMaterials.filter(m => 
+        !m.latitude && !m.longitude && 
+        (m.project_location || m.location_details || m.location)
+    );
+    
+    if (materialsToGeocode.length > 0) {
+        // Show loading message
+        if (sellerMap) {
+            const loadingPopup = L.popup()
+                .setLatLng([20.5937, 78.9629])
+                .setContent('<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px;"></i><p>Geocoding addresses...</p></div>')
+                .openOn(sellerMap);
+        }
+        
+        // Geocode addresses (with rate limiting)
+        for (let i = 0; i < materialsToGeocode.length && i < 10; i++) {
+            const material = materialsToGeocode[i];
+            const address = material.project_location || material.location_details || material.location;
+            
+            try {
+                const response = await fetch('/api/geocode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address })
+                });
+                
+                const result = await response.json();
+                if (result.success && result.lat && result.lng) {
+                    material.latitude = result.lat;
+                    material.longitude = result.lng;
+                    materialsWithCoords.push(material);
+                }
+                
+                // Rate limit: wait 1 second between requests
+                if (i < materialsToGeocode.length - 1 && i < 9) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            } catch (error) {
+                console.error('Geocoding error for material:', material.id, error);
+            }
+        }
+    }
+    
+    if (materialsWithCoords.length === 0) {
+        // Show message using a popup or overlay on the map
+        if (sellerMap) {
+            sellerMap.setView([20.5937, 78.9629], 5);
+            const noDataPopup = L.popup()
+                .setLatLng([20.5937, 78.9629])
+                .setContent(`
+                    <div style="text-align: center; padding: 20px; color: #6b7280; max-width: 300px;">
+                        <i class="fas fa-map-marker-alt" style="font-size: 48px; opacity: 0.3; margin-bottom: 10px;"></i>
+                        <p style="margin-bottom: 10px;">No materials with location data found</p>
+                        <p style="font-size: 12px; color: #9ca3af;">Add location coordinates when creating or editing materials</p>
+                    </div>
+                `)
+                .openOn(sellerMap);
+        }
+        return;
+    }
+    
+    // Create markers for each material
+    materialsWithCoords.forEach(material => {
+        const lat = parseFloat(material.latitude);
+        const lng = parseFloat(material.longitude);
+        
+        if (isNaN(lat) || isNaN(lng)) return;
+        
+        // Parse photo for popup
+        let photoUrl = null;
+        if (material.photo) {
+            try {
+                const parsed = JSON.parse(material.photo);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    photoUrl = parsed[0];
+                } else if (parsed && typeof parsed === 'string') {
+                    photoUrl = parsed;
+                } else {
+                    photoUrl = material.photo;
+                }
+            } catch {
+                photoUrl = material.photo;
+            }
+        }
+        
+        const photoHtml = photoUrl ? 
+            `<img src="${photoUrl}" alt="${material.material}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;">` :
+            '<div style="width: 100px; height: 100px; background: #e5e7eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;"><i class="fas fa-image" style="color: #9ca3af;"></i></div>';
+        
+        const popupContent = `
+            <div style="min-width: 200px; max-width: 300px;">
+                ${photoHtml}
+                <h4 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #111827;">${material.material || 'Material'}</h4>
+                ${material.brand ? `<p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px;"><strong>Brand:</strong> ${material.brand}</p>` : ''}
+                <p style="margin: 0 0 8px 0; color: #111827; font-size: 16px; font-weight: 700;">
+                    <span style="color: #10b981;">₹${material.priceToday || material.price_today || 0}</span>
+                    <span style="color: #6b7280; font-size: 12px; font-weight: 400;">/${material.unit || 'pcs'}</span>
+                </p>
+                <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 14px;">
+                    <strong>Quantity:</strong> ${material.qty || material.quantity || 0} ${material.unit || 'pcs'}
+                </p>
+                <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 14px;">
+                    <strong>Project:</strong> ${getProjectName(material.projectId)}
+                </p>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="viewMaterialDetail('${material.id}')" style="flex: 1; padding: 8px 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">
+                        <i class="fas fa-info-circle"></i> Details
+                    </button>
+                    <button onclick="editMaterial('${material.id}')" style="flex: 1; padding: 8px 12px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        const marker = L.marker([lat, lng]);
+        marker.bindPopup(popupContent);
+        sellerMarkerClusterGroup.addLayer(marker);
+    });
+    
+    // Fit map to show all markers
+    if (materialsWithCoords.length > 0) {
+        const bounds = materialsWithCoords.map(m => [parseFloat(m.latitude), parseFloat(m.longitude)]);
+        sellerMap.fitBounds(bounds, { padding: [50, 50] });
+    }
+}
+
 // Helper functions
 function getProjectName(projectId) {
     const project = projects.find(p => p.id === projectId);
@@ -790,13 +976,18 @@ function getStatusText(listingType, acquisitionType = null) {
     }
 }
 
-// Set view (grid or table)
+// Set view (grid, table, or map)
 function setView(view) {
     currentView = view;
     
     // Update button states
-    document.getElementById('grid-view-btn').classList.toggle('active', view === 'grid');
-    document.getElementById('table-view-btn').classList.toggle('active', view === 'table');
+    const gridBtn = document.getElementById('grid-view-btn');
+    const tableBtn = document.getElementById('table-view-btn');
+    const mapBtn = document.getElementById('map-view-btn');
+    
+    if (gridBtn) gridBtn.classList.toggle('active', view === 'grid');
+    if (tableBtn) tableBtn.classList.toggle('active', view === 'table');
+    if (mapBtn) mapBtn.classList.toggle('active', view === 'map');
     
     displayInventory();
 }

@@ -2519,10 +2519,11 @@ function initMap() {
     // Initialize map centered on India
     map = L.map('map-container').setView([20.5937, 78.9629], 5);
     
-    // Add OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
+    // Add CartoDB Positron tiles (English labels by default)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap contributors © CARTO',
+        maxZoom: 19,
+        subdomains: 'abcd'
     }).addTo(map);
     
     // Initialize marker cluster group
@@ -2891,10 +2892,11 @@ function initOrderTrackingMap(order) {
     // Initialize map centered on India
     const trackingMap = L.map('order-tracking-map').setView([20.5937, 78.9629], 5);
     
-    // Add OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
+    // Add CartoDB Positron tiles (English labels by default)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap contributors © CARTO',
+        maxZoom: 19,
+        subdomains: 'abcd'
     }).addTo(trackingMap);
     
     // Geocode addresses and show markers
