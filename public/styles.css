@@ -3845,6 +3845,13 @@ body {
     color: white;
 }
 
+[data-theme="dark"] .status-badge.status-resale {
+    background: #10b981 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.4);
+}
+
 [data-theme="dark"] .status-badge.status-pending {
     background: var(--warning-color);
 }
