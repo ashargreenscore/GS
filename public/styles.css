@@ -1126,6 +1126,18 @@ body {
     gap: 0.5rem;
     font-size: 0.9rem;
     color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+}
+
+.item-details p {
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.request-actions {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
 }
 
 .item-price {
@@ -2054,8 +2066,10 @@ body {
 }
 
 .status-resale {
-    background: #d1fae5;
-    color: #065f46;
+    background: #10b981;
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
 }
 
 .status-internal_transfer {
