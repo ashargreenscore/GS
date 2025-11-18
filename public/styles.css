@@ -248,11 +248,19 @@ body {
     padding: 0.5rem 1rem;
     border-radius: 0.5rem;
     transition: all 0.3s;
+    color: #1f2937 !important;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid #e5e7eb;
 }
 
 .nav-links .mode-switch:hover {
     background: #10b981;
     color: white !important;
+    border-color: #10b981;
 }
 
 .nav-links .sign-out-btn {
@@ -3607,6 +3615,18 @@ body {
 
 [data-theme="dark"] .nav-links a:hover {
     color: var(--success-color);
+}
+
+[data-theme="dark"] .nav-links .mode-switch {
+    background: var(--card-bg) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+[data-theme="dark"] .nav-links .mode-switch:hover {
+    background: var(--success-color) !important;
+    color: white !important;
+    border-color: var(--success-color) !important;
 }
 
 [data-theme="dark"] .logo {
