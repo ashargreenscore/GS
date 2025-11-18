@@ -1064,8 +1064,8 @@ function clearFilters() {
     if (priceMinInput && priceMaxInput) {
         priceMinInput.value = 0;
         priceMaxInput.value = 1000000;
-        updatePriceRange();
     }
+    
     filterMaterials();
     showNotification('Filters cleared', 'success');
 }
@@ -1074,9 +1074,11 @@ function clearFilters() {
 function updatePriceRange() {
     const min = parseInt(document.getElementById('price-range-min')?.value || 0);
     const max = parseInt(document.getElementById('price-range-max')?.value || 1000000);
-    const display = document.getElementById('price-range-display');
-    if (display) {
-        display.textContent = `₹${min.toLocaleString('en-IN')} - ₹${max.toLocaleString('en-IN')}`;
+    // Validate min and max
+    if (min > max) {
+        const temp = min;
+        document.getElementById('price-range-min').value = max;
+        document.getElementById('price-range-max').value = temp;
     }
     filterMaterials();
 }

@@ -169,11 +169,10 @@
                             <option value="price-high">Price: High to Low</option>
                             <option value="distance" id="distance-sort-option" style="display: none;">Distance (Nearest First)</option>
                         </select>
-                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0 0.5rem;">
-                            <label style="font-size: 0.875rem; color: #6b7280;">Price:</label>
-                            <input type="range" id="price-range-min" min="0" max="1000000" value="0" step="1000" style="width: 100px;" oninput="updatePriceRange()">
-                            <span id="price-range-display" style="font-size: 0.875rem; color: #374151; min-width: 120px;">₹0 - ₹10,00,000</span>
-                            <input type="range" id="price-range-max" min="0" max="1000000" value="1000000" step="1000" style="width: 100px;" oninput="updatePriceRange()">
+                        <div class="price-filter-group">
+                            <input type="number" id="price-range-min" placeholder="Min ₹" min="0" max="1000000" value="0" step="1000" oninput="updatePriceRange()" aria-label="Minimum price">
+                            <span class="price-separator">-</span>
+                            <input type="number" id="price-range-max" placeholder="Max ₹" min="0" max="1000000" value="1000000" step="1000" oninput="updatePriceRange()" aria-label="Maximum price">
                         </div>
                         <button id="view-toggle-btn" class="view-toggle-btn" onclick="toggleMapView()" title="Toggle Map/List View">
                             <i class="fas fa-map"></i> <span id="view-toggle-text">Map View</span>
