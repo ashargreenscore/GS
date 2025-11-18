@@ -1813,7 +1813,7 @@ function loadDashboardCharts() {
     if (!chartsSection) {
         chartsSection = document.createElement('div');
         chartsSection.id = 'charts-section';
-        chartsSection.style.cssText = 'margin-top: 2rem; padding: 1.5rem; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);';
+        chartsSection.style.cssText = 'margin-top: 2rem; padding: 1.5rem; background: var(--card-bg); border-radius: 12px; box-shadow: 0 1px 3px var(--shadow); border: 1px solid var(--border-color); color: var(--text-primary);';
         statsContainer.parentNode.insertBefore(chartsSection, statsContainer.nextSibling);
     }
     
