@@ -1630,17 +1630,17 @@ body {
 
 .product-footer {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
+    flex-direction: column;
+    gap: 0.875rem;
     margin-top: 1rem;
 }
 
-.product-price-compare {
+.product-price-compare-row {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 0.75rem;
-    flex: 1;
+    width: 100%;
 }
 
 .product-price {
@@ -1648,6 +1648,13 @@ body {
     font-weight: bold;
     color: #10b981;
     white-space: nowrap;
+}
+
+.product-cart-row {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
 }
 
 .add-to-cart {
@@ -3619,10 +3626,12 @@ body {
     display: flex;
     align-items: center;
     gap: 4px;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 2px;
+    width: 100%;
+    justify-content: center;
 }
 
 .add-to-cart-container {
@@ -3631,8 +3640,9 @@ body {
 
 .qty-selector {
     display: flex;
-    gap: 8px;
+    gap: 0.5rem;
     align-items: stretch;
+    width: 100%;
 }
 
 .qty-input, .qty-input-small {
@@ -3663,8 +3673,36 @@ body {
 }
 
 .qty-input-small {
-    width: 50px;
-    padding: 6px;
+    width: 60px;
+    padding: 0.5rem;
+    flex-shrink: 0;
+}
+
+.qty-input-card {
+    width: 70px;
+    padding: 0.625rem;
+    text-align: center;
+    border: 1px solid var(--input-border);
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+    -moz-appearance: textfield;
+    flex-shrink: 0;
+}
+
+.qty-input-card::-webkit-outer-spin-button,
+.qty-input-card::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.qty-input-card:focus {
+    outline: none;
+    border-color: var(--success-color);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
 }
 
 .add-to-cart-btn {
@@ -3685,6 +3723,29 @@ body {
 }
 
 .add-to-cart-btn:hover {
+    background: #059669;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.add-to-cart-btn-card {
+    flex: 1;
+    padding: 0.625rem 1rem;
+    background: var(--success-color);
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.add-to-cart-btn-card:hover {
     background: #059669;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);

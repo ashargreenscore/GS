@@ -740,11 +740,13 @@ function displayMaterials() {
                     <span><strong>Available:</strong> ${material.qty} ${material.unit || 'pcs'}</span>
                 </div>
                 <div class="product-footer">
-                    <div class="product-price-compare">
+                    <div class="product-price-compare-row">
                         <div class="product-price">₹${material.priceToday || 0}</div>
                         ${compareButton}
                     </div>
-                    ${cartButtonHtml}
+                    <div class="product-cart-row">
+                        ${cartButtonHtml}
+                    </div>
                 </div>
             </div>
         </div>
@@ -954,25 +956,21 @@ function getCartButtonHTML(material) {
             </div>
         `;
     } else {
-        // Item not in cart - show add button with quantity selector
+        // Item not in cart - show quantity input and add button side by side
         return `
-            <div class="add-to-cart-container">
-                <div class="qty-selector">
-                    <input type="number" 
-                           id="qty-select-${materialId}"
-                           class="qty-input-small" 
-                           value="1" 
-                           min="1" 
-                           max="${maxQty}"
-                           onclick="event.stopPropagation();"
-                           onkeypress="event.stopPropagation();"
-                           placeholder="Qty">
-                    <button class="add-to-cart-btn" onclick="event.stopPropagation(); addToCartWithQty('${materialId}', ${maxQty})">
-                        <i class="fas fa-cart-plus"></i>
-                        Add to Cart
-                    </button>
-                </div>
-            </div>
+            <input type="number" 
+                   id="qty-select-${materialId}"
+                   class="qty-input-card" 
+                   value="1" 
+                   min="1" 
+                   max="${maxQty}"
+                   onclick="event.stopPropagation();"
+                   onkeypress="event.stopPropagation();"
+                   placeholder="Qty">
+            <button class="add-to-cart-btn-card" onclick="event.stopPropagation(); addToCartWithQty('${materialId}', ${maxQty})">
+                <i class="fas fa-cart-plus"></i>
+                Add to Cart
+            </button>
         `;
     }
 }
