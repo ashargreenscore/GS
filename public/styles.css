@@ -3751,6 +3751,14 @@ body {
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
+.cart-quantity-controls-enhanced {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    justify-content: flex-start;
+}
+
 /* Better visibility for quantity buttons */
 .cart-quantity-controls-enhanced .qty-btn {
     width: 36px !important;
