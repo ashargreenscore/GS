@@ -1732,6 +1732,7 @@ body {
 .product-cart-row {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 0.625rem;
     width: 100%;
 }
@@ -1799,12 +1800,17 @@ body {
 .self-item-notice {
     background: #fef3c7;
     color: #92400e;
-    padding: 0.5rem;
+    padding: 0.5rem 0.75rem;
     border-radius: 0.375rem;
-    text-align: center;
     font-size: 0.875rem;
     font-weight: 500;
     border: 1px solid #fbbf24;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    margin-left: auto;
+    min-width: 120px;
 }
 
 /* Notifications */

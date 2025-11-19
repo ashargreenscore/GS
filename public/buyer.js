@@ -795,7 +795,7 @@ function getModalCartButtonHTML(material) {
     // Prevent self-buying
     if (currentUser && currentUser.id === sellerId) {
         return `
-            <div class="self-item-notice" style="background: #f3f4f6; color: #6b7280; padding: 8px; border-radius: 4px; text-align: center; font-size: 0.75rem;">
+            <div class="self-item-notice">
                 <i class="fas fa-info-circle"></i>
                 Your Item
             </div>
