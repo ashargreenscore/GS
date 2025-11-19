@@ -1382,7 +1382,7 @@ body {
 
 .filters {
     display: flex;
-    gap: 0.4rem;
+    gap: 0.5rem;
     flex-wrap: nowrap;
     align-items: center;
     overflow-x: auto;
@@ -1396,21 +1396,21 @@ body {
 }
 
 .filters select {
-    padding: 0.45rem 0.55rem;
+    padding: 0.55rem 0.7rem;
     border: 1px solid var(--input-border);
     border-radius: 0.5rem;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     background: var(--input-bg);
     color: var(--text-primary);
-    min-width: 100px;
+    min-width: 110px;
     flex-shrink: 0;
 }
 
 .price-filter-group {
     display: flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.45rem 0.55rem;
+    gap: 0.4rem;
+    padding: 0.55rem 0.7rem;
     border: 1px solid var(--input-border);
     border-radius: 0.5rem;
     background: var(--input-bg);
@@ -1418,12 +1418,12 @@ body {
 }
 
 .price-filter-group input[type="number"] {
-    width: 70px;
-    padding: 0.35rem;
+    width: 75px;
+    padding: 0.4rem;
     border: none;
     background: transparent;
     color: var(--text-primary);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     outline: none;
 }
 
@@ -1445,12 +1445,12 @@ body {
 .filters .btn-secondary {
     flex-shrink: 0;
     white-space: nowrap;
-    padding: 0.45rem 0.65rem;
-    font-size: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.8rem;
 }
 
 .filters .btn-secondary i {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
 }
 
 .marketplace-content {
