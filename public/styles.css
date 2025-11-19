@@ -1253,13 +1253,16 @@ body {
 }
 
 .inventory-action-btn {
-    background: var(--card-bg);
+    background: var(--input-bg);
     white-space: nowrap;
+    border: 1px solid var(--input-border);
 }
 
 .inventory-action-btn:hover {
     background: var(--hover-bg);
     border-color: var(--success-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px var(--shadow);
 }
 
 .inventory-action-btn:disabled {
