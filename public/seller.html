@@ -242,21 +242,21 @@
                 <div id="inventory-tab" class="tab-content">
                     <div class="inventory-section">
                         <div class="inventory-header">
-                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                <h2>My Inventory</h2>
-                                <div class="view-toggle">
-                                    <button class="view-btn active" onclick="setView('grid')" id="grid-view-btn" title="Grid View">
-                                        <i class="fas fa-th"></i>
-                                    </button>
-                                    <button class="view-btn" onclick="setView('table')" id="table-view-btn" title="List View">
-                                        <i class="fas fa-list"></i>
-                                    </button>
-                                    <button class="view-btn" onclick="setView('map')" id="map-view-btn" title="Map View">
-                                        <i class="fas fa-map"></i>
-                                    </button>
-                                </div>
+                            <h2>My Inventory</h2>
+                            <div class="view-toggle">
+                                <button class="view-btn active" onclick="setView('grid')" id="grid-view-btn" title="Grid View">
+                                    <i class="fas fa-th"></i>
+                                </button>
+                                <button class="view-btn" onclick="setView('table')" id="table-view-btn" title="List View">
+                                    <i class="fas fa-list"></i>
+                                </button>
+                                <button class="view-btn" onclick="setView('map')" id="map-view-btn" title="Map View">
+                                    <i class="fas fa-map"></i>
+                                </button>
                             </div>
-                            <div class="inventory-controls" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        </div>
+                        <div class="inventory-controls">
+                            <div class="inventory-filters">
                                 <select id="project-filter">
                                     <option value="all">All Projects</option>
                                 </select>
@@ -275,6 +275,8 @@
                                     <option value="sold">Sold</option>
                                 </select>
                                 <input type="text" id="search-inventory" placeholder="Search inventory...">
+                            </div>
+                            <div class="inventory-actions">
                                 <button class="btn btn-secondary" onclick="clearInventoryFilters()" title="Clear all filters">
                                     <i class="fas fa-times-circle"></i> Clear
                                 </button>
