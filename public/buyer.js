@@ -739,12 +739,12 @@ function displayMaterials() {
                     <span><strong>Condition:</strong> ${material.condition ? material.condition.charAt(0).toUpperCase() + material.condition.slice(1) : 'Good'}</span>
                     <span><strong>Available:</strong> ${material.qty} ${material.unit || 'pcs'}</span>
                 </div>
-                <div class="product-footer" style="display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                    <div class="product-price">₹${material.priceToday || 0}</div>
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end;">
+                <div class="product-footer">
+                    <div class="product-price-compare">
+                        <div class="product-price">₹${material.priceToday || 0}</div>
                         ${compareButton}
-                        ${cartButtonHtml}
                     </div>
+                    ${cartButtonHtml}
                 </div>
             </div>
         </div>
@@ -1895,9 +1895,21 @@ function displayFavoritesList() {
                     </button>
                 </div>
                 <div class="product-info">
+                    <div class="product-header">
+                        <span class="product-category">${fav.category || 'Other'}</span>
+                    </div>
                     <h3>${fav.material}</h3>
                     ${fav.brand ? `<div class="product-brand">${fav.brand}</div>` : ''}
-                    <div class="product-price">₹${fav.price || 0}</div>
+                    <div class="product-footer">
+                        <div class="product-price-compare">
+                            <div class="product-price">₹${fav.price || 0}</div>
+                        </div>
+                        <button onclick="event.stopPropagation(); addToCart('${fav.materialId}')" 
+                                class="add-to-cart" 
+                                style="background: #10b981; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-shopping-cart"></i> Add to Cart
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -3342,7 +3354,14 @@ function displayRecommendations() {
                     <h3>${material.material}</h3>
                     ${material.brand ? `<div class="product-brand">${material.brand}</div>` : ''}
                     <div class="product-footer">
-                        <div class="product-price">₹${material.priceToday || 0}</div>
+                        <div class="product-price-compare">
+                            <div class="product-price">₹${material.priceToday || 0}</div>
+                            <button onclick="event.stopPropagation(); compareMaterials('${material.id}')"
+                                    aria-label="Add ${material.material} to comparison"
+                                    style="background: rgba(16, 185, 129, 0.9); color: white; border: none; border-radius: 6px; padding: 0.45rem 0.85rem; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600;">
+                                <i class="fas fa-balance-scale" aria-hidden="true"></i> Compare
+                            </button>
+                        </div>
                         ${getCartButtonHTML(material)}
                     </div>
                 </div>
