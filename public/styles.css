@@ -1054,6 +1054,8 @@ body {
     cursor: pointer;
     transition: all 0.3s;
     margin-bottom: 2rem;
+    background: var(--card-bg);
+    color: var(--text-primary);
 }
 
 .upload-area:hover {
@@ -1061,10 +1063,18 @@ body {
     background: #f0fdf4;
 }
 
+[data-theme="dark"] .upload-area:hover {
+    background: rgba(16, 185, 129, 0.1);
+}
+
 .upload-area.dragover {
     border-color: #10b981;
     background: #f0fdf4;
     transform: scale(1.02);
+}
+
+[data-theme="dark"] .upload-area.dragover {
+    background: rgba(16, 185, 129, 0.15);
 }
 
 .upload-content i {
@@ -4705,6 +4715,64 @@ body {
 [data-theme="dark"] .upload-section p,
 [data-theme="dark"] .csv-template h3 {
     color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .csv-requirements {
+    background: rgba(59, 130, 246, 0.1) !important;
+    border: 1px solid rgba(59, 130, 246, 0.3) !important;
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .csv-requirements h4 {
+    color: #60a5fa !important;
+}
+
+[data-theme="dark"] .csv-requirements p {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .csv-requirements small {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .csv-requirements small strong {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .requirements-list li {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .requirements-list li.required {
+    color: #f87171 !important;
+}
+
+[data-theme="dark"] .requirements-list li.required strong {
+    color: #fca5a5 !important;
+}
+
+[data-theme="dark"] .requirements-list li.optional {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .requirements-list li.optional strong {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .upload-content p {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .upload-content small {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .upload-link {
+    color: var(--success-color) !important;
+}
+
+[data-theme="dark"] .upload-link:hover {
+    color: #34d399 !important;
 }
 
 [data-theme="dark"] .inventory-header h2 {
