@@ -4775,6 +4775,14 @@ body {
     color: #34d399 !important;
 }
 
+[data-theme="dark"] .upload-progress {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .upload-progress p {
+    color: var(--text-primary) !important;
+}
+
 [data-theme="dark"] .inventory-header h2 {
     color: var(--text-primary) !important;
 }
