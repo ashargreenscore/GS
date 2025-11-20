@@ -1534,6 +1534,12 @@ body {
     min-width: 120px;
 }
 
+.filters .btn-secondary[style*="min-width: auto"] {
+    min-width: auto;
+    padding: 0.625rem;
+    width: auto;
+}
+
 .filters .btn-secondary i {
     font-size: 0.8rem;
 }
