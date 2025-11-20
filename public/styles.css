@@ -334,8 +334,9 @@ body {
 }
 
 [data-theme="dark"] .dark-mode-toggle {
-    background: #374151;
-    color: #f9fafb;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
 }
 
 [data-theme="dark"] .dark-mode-toggle:hover {
