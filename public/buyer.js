@@ -741,11 +741,11 @@ function displayMaterials() {
                 </div>
                 <div class="product-footer">
                     <div class="product-price-compare-row">
-                        <div class="product-price">₹${material.priceToday || 0}</div>
+                    <div class="product-price">₹${material.priceToday || 0}</div>
                         ${compareButton}
                     </div>
                     <div class="product-cart-row">
-                        ${cartButtonHtml}
+                    ${cartButtonHtml}
                     </div>
                 </div>
             </div>
@@ -925,7 +925,7 @@ function getCartButtonHTML(material) {
     // Prevent self-buying
     if (currentUser && currentUser.id === sellerId) {
         return `
-            <div class="self-item-notice">
+            <div class="self-item-notice" style="margin-left: auto;">
                 <i class="fas fa-info-circle"></i>
                 Your Item
             </div>
@@ -958,19 +958,21 @@ function getCartButtonHTML(material) {
     } else {
         // Item not in cart - show quantity input and add button side by side
         return `
-            <input type="number" 
-                   id="qty-select-${materialId}"
-                   class="qty-input-card" 
-                   value="1" 
-                   min="1" 
-                   max="${maxQty}"
-                   onclick="event.stopPropagation();"
-                   onkeypress="event.stopPropagation();"
-                   placeholder="Qty">
-            <button class="add-to-cart-btn-card" onclick="event.stopPropagation(); addToCartWithQty('${materialId}', ${maxQty})">
-                <i class="fas fa-cart-plus"></i>
-                Add to Cart
-            </button>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: auto;">
+                <input type="number" 
+                       id="qty-select-${materialId}"
+                       class="qty-input-card" 
+                       value="1" 
+                       min="1" 
+                       max="${maxQty}"
+                       onclick="event.stopPropagation();"
+                       onkeypress="event.stopPropagation();"
+                       placeholder="Qty">
+                <button class="add-to-cart-btn-card" onclick="event.stopPropagation(); addToCartWithQty('${materialId}', ${maxQty})">
+                    <i class="fas fa-cart-plus"></i>
+                    Add to Cart
+                </button>
+            </div>
         `;
     }
 }
@@ -1902,11 +1904,9 @@ function displayFavoritesList() {
                         <div class="product-price-compare">
                             <div class="product-price">₹${fav.price || 0}</div>
                         </div>
-                        <button onclick="event.stopPropagation(); addToCart('${fav.materialId}')" 
-                                class="add-to-cart" 
-                                style="background: #10b981; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
-                            <i class="fas fa-shopping-cart"></i> Add to Cart
-                        </button>
+                        <div class="product-cart-row">
+                            ${getCartButtonHTML(material)}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3360,7 +3360,9 @@ function displayRecommendations() {
                                 <i class="fas fa-balance-scale" aria-hidden="true"></i> Compare
                             </button>
                         </div>
-                        ${getCartButtonHTML(material)}
+                        <div class="product-cart-row">
+                            ${getCartButtonHTML(material)}
+                        </div>
                     </div>
                 </div>
             </div>

@@ -3715,8 +3715,9 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 2px;
-    width: 100%;
-    justify-content: center;
+    flex-shrink: 0;
+    margin-left: auto;
+    width: auto;
 }
 
 .add-to-cart-container {
@@ -3775,6 +3776,7 @@ body {
     color: var(--text-primary);
     transition: all 0.2s ease;
     -moz-appearance: textfield;
+    appearance: textfield;
     flex-shrink: 0;
 }
 
@@ -3814,7 +3816,7 @@ body {
 }
 
 .add-to-cart-btn-card {
-    flex: 1;
+    flex-shrink: 0;
     padding: 0.625rem 1rem;
     background: var(--success-color);
     color: white;
@@ -3836,13 +3838,7 @@ body {
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
-.cart-quantity-controls-enhanced {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    width: 100%;
-    justify-content: flex-start;
-}
+/* Duplicate definition removed - using the one at line 3710 */
 
 /* Better visibility for quantity buttons */
 .cart-quantity-controls-enhanced .qty-btn {
