@@ -228,9 +228,8 @@ body {
 
 .nav-links {
     display: flex;
-    gap: 1.5rem;
+    gap: 2rem;
     align-items: center;
-    height: 40px;
 }
 
 .nav-links a {
