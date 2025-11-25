@@ -228,7 +228,7 @@ body {
 
 .nav-links {
     display: flex;
-    gap: 2rem;
+    gap: 1.25rem;
     align-items: center;
 }
 
@@ -273,6 +273,51 @@ body {
 
 .nav-links .sign-out-btn:hover {
     color: #dc2626 !important;
+}
+
+/* Notification Buttons */
+.nav-links .notification-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 0.5rem;
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+    padding: 0;
+}
+
+.nav-links .notification-btn:hover {
+    background: #f3f4f6;
+    color: #10b981;
+}
+
+.nav-links .notification-btn .notification-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ef4444;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    min-width: 20px;
+}
+
+.nav-links .notification-btn #comparison-badge {
+    background: #3b82f6;
 }
 
 /* User Profile Dropdown */
@@ -4031,6 +4076,15 @@ body {
     background: var(--success-color) !important;
     color: white !important;
     border-color: var(--success-color) !important;
+}
+
+[data-theme="dark"] .nav-links .notification-btn {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .nav-links .notification-btn:hover {
+    background: var(--card-bg);
+    color: var(--success-color);
 }
 
 [data-theme="dark"] .logo {

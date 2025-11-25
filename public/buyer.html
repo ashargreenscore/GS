@@ -39,6 +39,18 @@
                         <i class="fas fa-store"></i>
                         Switch to Seller
                     </a>
+                    <a href="#" onclick="toggleFavorites()" class="notification-btn" title="Favorites" aria-label="View favorites" role="button" tabindex="0" style="position: relative;">
+                        <i class="fas fa-heart"></i>
+                        <span id="favorites-badge" class="notification-badge" aria-live="polite" style="display: none; position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 11px;">0</span>
+                    </a>
+                    <a href="#" onclick="showComparisonModal()" class="notification-btn" title="Compare Materials" aria-label="Compare materials" role="button" tabindex="0" style="position: relative;">
+                        <i class="fas fa-balance-scale"></i>
+                        <span id="comparison-badge" class="notification-badge" aria-live="polite" style="display: none; position: absolute; top: -8px; right: -8px; background: #3b82f6; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 11px;">0</span>
+                    </a>
+                    <a href="#" onclick="toggleNotifications()" class="notification-btn" title="Notifications" aria-label="View notifications" role="button" tabindex="0" style="position: relative;">
+                        <i class="fas fa-bell"></i>
+                        <span id="notification-badge" class="notification-badge" aria-live="polite" style="display: none; position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 11px;">0</span>
+                    </a>
                     <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle dark mode" aria-label="Toggle dark mode">
                         <i class="fas fa-moon" id="dark-mode-icon"></i>
                     </button>
